@@ -594,7 +594,7 @@ function renderViewer(){
   });
 
   document.getElementById('viewer-wrap').innerHTML=html;
-  if(mode===2||mode===3){p.compases.forEach((c,ci)=>{const div=document.getElementById('staff-'+ci);if(div)renderVexFlowStaff(c,p.compas||'4/4',div);});}
+  if(mode===2||mode===3){p.compases.forEach((c,ci)=>{const div=document.getElementById('staff-'+ci);if(div)renderVexFlowStaff({...c,_ci:ci},p.compas||'4/4',div);});}
 }
 
 function renderCompasBlock(c,ci,mode,compas,numGroups,bpg){
@@ -646,25 +646,30 @@ function renderVexFlowStaff(compasData,compasStr,divEl){
   const showLabels=(mode===2||mode===3);
   try{
     const {Renderer,Stave,StaveNote,Voice,Formatter,Accidental,Dot}=Vex.Flow;
-    const notas=(compasData.notas||[]).filter(n=>n&&n!=='skip');
-    if(!notas.length)return;
+    // Keep original ni index for playback IDs
+    const notasIdx=[];
+    (compasData.notas||[]).forEach((nota,ni)=>{if(nota&&nota!=='skip')notasIdx.push({nota,ni});});
+    if(!notasIdx.length)return;
+    const notas=notasIdx.map(x=>x.nota);
+    const ci=compasData._ci!==undefined?compasData._ci:0;
 
-    const NOTE_SLOT=Math.max(52, Math.floor((divEl.parentElement?.offsetWidth||600)/Math.max(notas.length,1)));
-    const CLEF_W=50;
-    const W=Math.max(320, notas.length*NOTE_SLOT+CLEF_W+30);
+    const SLOT=Math.max(62,Math.min(100,Math.floor((divEl.parentElement?.offsetWidth||700)/Math.max(notas.length,1))));
+    const CLEF_W=54;
+    const W=Math.max(340,notas.length*SLOT+CLEF_W+40);
 
-    // Heights: color blocks on top (if parallel), then staff
-    const COLOR_H=showColors?52:0;
-    const LABEL_H=showLabels?16:0;
-    const STAFF_TOP=COLOR_H+4;
-    const STAFF_H=90;
+    // Vertical zones
+    const LABEL_H=showLabels?20:0;   // name label above block/staff
+    const BLOCK_H=showColors?50:0;   // colour block
+    const GAP=showLabels||showColors?8:0;
+    const STAFF_TOP=LABEL_H+BLOCK_H+GAP;
+    const LINE_SP=9;
+    const STAFF_H=4*LINE_SP+44;
     const H=STAFF_TOP+STAFF_H;
 
     const renderer=new Renderer(divEl,Renderer.Backends.SVG);
     renderer.resize(W,H);
     const ctx=renderer.getContext();
 
-    // Draw staff
     const stave=new Stave(10,STAFF_TOP,W-20);
     stave.addClef('treble').addTimeSignature(compasStr);
     stave.setContext(ctx).draw();
@@ -682,13 +687,10 @@ function renderVexFlowStaff(compasData,compasStr,divEl){
       const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
       const vexKey=VEX_NOTE_MAP[nota.key]||'c';
       const oct=(nota.oct||0)+4;
-      let accStr='';
-      if(nota.alt==='sharp')accStr='#';
-      else if(nota.alt==='flat')accStr='b';
+      const accStr=nota.alt==='sharp'?'#':nota.alt==='flat'?'b':'';
       const keyStr=`${vexKey}${accStr}/${oct}`;
-      const stemDir=oct>=5?-1:1;
       const color=NOTE_COLORS[nota.key]||'#000';
-      const sn=new StaveNote({keys:[keyStr],duration:fig.vex,stem_direction:stemDir});
+      const sn=new StaveNote({keys:[keyStr],duration:fig.vex,stem_direction:oct>=5?-1:1});
       sn.setStyle({fillStyle:color,strokeStyle:color});
       if(nota.alt==='sharp')sn.addModifier(new Accidental('#'));
       else if(nota.alt==='flat')sn.addModifier(new Accidental('b'));
@@ -699,101 +701,113 @@ function renderVexFlowStaff(compasData,compasStr,divEl){
     const voice=new Voice({num_beats:totalQuarters,beat_value:4});
     voice.setMode(Voice.Mode.SOFT);
     voice.addTickables(vexNotes);
-    new Formatter().joinVoices([voice]).format([voice],W-CLEF_W-30);
+    new Formatter().joinVoices([voice]).format([voice],W-CLEF_W-40);
     voice.draw(ctx,stave);
 
-    // After drawing, get X positions of each note to align color blocks
     const svgEl=divEl.querySelector('svg');
-    if(!svgEl) return;
+    if(!svgEl)return;
 
-    // Get note head X positions from rendered SVG noteheads
-    const noteHeads=svgEl.querySelectorAll('.vf-notehead path, .vf-notehead use, .vf-note .vf-notehead');
-    let noteXPositions=[];
-
-    // Use tickable absolute X positions (more reliable)
-    vexNotes.forEach((sn,idx)=>{
-      try{
-        const ax=sn.getAbsoluteX();
-        if(ax) noteXPositions.push(ax);
-      }catch(e){}
-    });
-
-    // Fallback: evenly space if we can't get positions
-    if(noteXPositions.length!==notas.length){
-      noteXPositions=notas.map((_,i)=>CLEF_W+20+(i+0.5)*((W-CLEF_W-30)/notas.length));
+    // Get note X positions after VexFlow formats them
+    const xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
+    // Fallback if any missing
+    const validX=xPos.filter(Boolean);
+    if(validX.length!==notas.length){
+      for(let i=0;i<notas.length;i++) if(!xPos[i]) xPos[i]=CLEF_W+20+(i+0.5)*((W-CLEF_W-30)/notas.length);
     }
 
-    // Draw color blocks and/or labels on SVG for each note
-    notas.forEach((nota,i)=>{
-      const x=noteXPositions[i]||0;
-      if(!x) return;
-      const color=nota.type==='note'?(NOTE_COLORS[nota.key]||'#888'):'#ccc';
+    // Add SVG style for playback highlight animation
+    const style=document.createElementNS('http://www.w3.org/2000/svg','style');
+    style.textContent='.svn-ring{transition:opacity 0.08s;}.svn-active .svn-ring{opacity:0.2;}';
+    svgEl.insertBefore(style,svgEl.firstChild);
+
+    // Draw overlays per note
+    notasIdx.forEach(({nota,ni},i)=>{
+      const x=xPos[i]; if(!x)return;
+      const color=nota.type==='note'?(NOTE_COLORS[nota.key]||'#888'):'#aaa';
+      const tc=nota.type==='note'?(NOTE_TEXT[nota.key]||'white'):'#555';
       const noteName=nota.type==='note'?NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]:'𝄽';
       const altS=nota.type==='note'?altSym(nota.alt):'';
       const octSuf=nota.type==='note'?(OCTAVAS[nota.oct]?.suffix||''):'';
-      const tc=nota.type==='note'?(NOTE_TEXT[nota.key]||'white'):'#888';
+
+      // Group with playback ID
+      const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('id',`svn-${ci}-${ni}`);
+      g.setAttribute('class','svn-note');
+      svgEl.appendChild(g);
+
+      // Highlight ring (full column, shown on active)
+      const bw=Math.min(SLOT-4,52);
+      const ring=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      ring.setAttribute('x',x-bw/2-2);ring.setAttribute('y',0);
+      ring.setAttribute('width',bw+4);ring.setAttribute('height',H);
+      ring.setAttribute('rx','7');ring.setAttribute('fill',color);
+      ring.setAttribute('opacity','0');ring.setAttribute('class','svn-ring');
+      g.appendChild(ring);
 
       if(showColors){
-        // Color block above staff
-        const bw=Math.min(NOTE_SLOT-4,44);
-        const bh=COLOR_H-6;
-        const bx=x-bw/2;
-        const by=2;
-        // Rounded rect
+        // Colour block zone
+        const bh=BLOCK_H-4;
+        const by=LABEL_H;
         const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
-        rect.setAttribute('x',bx);rect.setAttribute('y',by);
+        rect.setAttribute('x',x-bw/2);rect.setAttribute('y',by);
         rect.setAttribute('width',bw);rect.setAttribute('height',bh);
-        rect.setAttribute('rx','6');rect.setAttribute('fill',color);
-        rect.setAttribute('stroke','rgba(0,0,0,0.15)');rect.setAttribute('stroke-width','1');
-        svgEl.appendChild(rect);
+        rect.setAttribute('rx','7');rect.setAttribute('fill',color);
+        rect.setAttribute('stroke','rgba(0,0,0,0.12)');rect.setAttribute('stroke-width','1.2');
+        g.appendChild(rect);
 
         // Note name inside block
         const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
-        txt.setAttribute('x',x);txt.setAttribute('y',by+bh*0.45);
+        txt.setAttribute('x',x);txt.setAttribute('y',by+bh/2);
         txt.setAttribute('text-anchor','middle');txt.setAttribute('dominant-baseline','middle');
-        txt.setAttribute('font-size','11');txt.setAttribute('font-weight','800');
+        txt.setAttribute('font-size','13');txt.setAttribute('font-weight','900');
         txt.setAttribute('font-family','Nunito,sans-serif');txt.setAttribute('fill',tc);
         txt.textContent=altS+noteName;
-        svgEl.appendChild(txt);
+        g.appendChild(txt);
 
-        // Octave suffix small
+        // Octave in corner
         if(octSuf){
-          const txts=document.createElementNS('http://www.w3.org/2000/svg','text');
-          txts.setAttribute('x',x+bw/2-4);txts.setAttribute('y',by+bh-4);
-          txts.setAttribute('text-anchor','end');txts.setAttribute('font-size','8');
-          txts.setAttribute('font-family','Nunito,sans-serif');txts.setAttribute('fill',tc);txts.setAttribute('opacity','0.8');
-          txts.textContent=octSuf;
-          svgEl.appendChild(txts);
+          const ts=document.createElementNS('http://www.w3.org/2000/svg','text');
+          ts.setAttribute('x',x+bw/2-3);ts.setAttribute('y',by+bh-3);
+          ts.setAttribute('text-anchor','end');ts.setAttribute('font-size','8');
+          ts.setAttribute('font-family','Nunito,sans-serif');ts.setAttribute('fill',tc);ts.setAttribute('opacity','0.85');
+          ts.textContent=octSuf;
+          g.appendChild(ts);
         }
 
-        // Connector line from block to notehead
-        const lineTop=by+bh;
-        const lineBot=STAFF_TOP;
-        if(lineBot>lineTop+2){
+        // Dashed connector block→staff
+        if(GAP>2){
           const line=document.createElementNS('http://www.w3.org/2000/svg','line');
-          line.setAttribute('x1',x);line.setAttribute('y1',lineTop);
-          line.setAttribute('x2',x);line.setAttribute('y2',lineBot);
+          line.setAttribute('x1',x);line.setAttribute('y1',LABEL_H+BLOCK_H);
+          line.setAttribute('x2',x);line.setAttribute('y2',STAFF_TOP);
           line.setAttribute('stroke',color);line.setAttribute('stroke-width','1.5');
-          line.setAttribute('stroke-dasharray','3,2');line.setAttribute('opacity','0.5');
-          svgEl.appendChild(line);
+          line.setAttribute('stroke-dasharray','3,2');line.setAttribute('opacity','0.4');
+          g.appendChild(line);
         }
-      } else if(showLabels && nota.type==='note'){
-        // Mode 3: just note name below/above the note on the staff
-        const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-        const oct=(nota.oct||0)+4;
-        const labelY=oct>=5?(STAFF_TOP-8):(STAFF_TOP+STAFF_H-8);
+
+        // Small octave label in LABEL zone (above block)
+        if(showLabels&&octSuf){
+          const ol=document.createElementNS('http://www.w3.org/2000/svg','text');
+          ol.setAttribute('x',x);ol.setAttribute('y',LABEL_H-3);
+          ol.setAttribute('text-anchor','middle');ol.setAttribute('dominant-baseline','auto');
+          ol.setAttribute('font-size','10');ol.setAttribute('font-weight','800');
+          ol.setAttribute('font-family','Nunito,sans-serif');ol.setAttribute('fill',color);
+          ol.textContent=octSuf;
+          g.appendChild(ol);
+        }
+      } else if(showLabels&&nota.type==='note'){
+        // Mode 3: label always above staff, outside, large and readable
         const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-        lbl.setAttribute('x',x);lbl.setAttribute('y',labelY);
-        lbl.setAttribute('text-anchor','middle');lbl.setAttribute('font-size','9');
-        lbl.setAttribute('font-weight','800');lbl.setAttribute('font-family','Nunito,sans-serif');
-        lbl.setAttribute('fill',color);
-        lbl.textContent=altS+noteName;
-        svgEl.appendChild(lbl);
+        lbl.setAttribute('x',x);lbl.setAttribute('y',STAFF_TOP-5);
+        lbl.setAttribute('text-anchor','middle');lbl.setAttribute('dominant-baseline','auto');
+        lbl.setAttribute('font-size','13');lbl.setAttribute('font-weight','900');
+        lbl.setAttribute('font-family','Nunito,sans-serif');lbl.setAttribute('fill',color);
+        lbl.textContent=altS+noteName+(octSuf?' '+octSuf:'');
+        g.appendChild(lbl);
       }
     });
 
   }catch(err){
-    divEl.innerHTML='<p style="color:#aaa;font-size:0.75rem;padding:8px">Error al renderizar el pentagrama</p>';
+    divEl.innerHTML='<p style="color:#aaa;font-size:0.75rem;padding:8px">Error al renderizar pentagrama</p>';
     console.error('VexFlow:',err);
   }
 }
@@ -861,12 +875,25 @@ function stopPlayback(){
   state.student.playing=false;clearTimeout(state.student.playTimer);state.student.playPos=null;
   const btn=document.getElementById('play-btn');if(btn)btn.textContent='▶';
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
+  document.querySelectorAll('.svn-active').forEach(el=>el.classList.remove('svn-active'));
 }
 
 function highlightNote(ci,ni){
+  // Clear previous highlights
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
-  const el=document.getElementById(`vn-${ci}-${ni}`);
-  if(el){el.classList.add('active-note');el.scrollIntoView({behavior:'smooth',block:'nearest'});}
+  document.querySelectorAll('.svn-active').forEach(el=>el.classList.remove('svn-active'));
+  const mode=state.student.mode;
+  if(mode===0||mode===1){
+    const el=document.getElementById(`vn-${ci}-${ni}`);
+    if(el){el.classList.add('active-note');el.scrollIntoView({behavior:'smooth',block:'nearest'});}
+  } else {
+    // Modes 2 and 3: highlight SVG group
+    const g=document.getElementById(`svn-${ci}-${ni}`);
+    if(g){
+      g.classList.add('svn-active');
+      g.closest('.staff-wrap')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+    }
+  }
 }
 
 function escHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
