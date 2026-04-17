@@ -583,12 +583,7 @@ function renderViewer(){
           }
           html+='</div>';
         } else if(mode===2){
-          html+=`<div class="viewer-cells">`;
-          for(let gi=0;gi<numGroups;gi++){
-            if(gi>0)html+='<div class="viewer-beat-sep"></div>';
-            for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,1,ci,ni,true);}
-          }
-          html+=`</div><div class="staff-wrap" id="staff-${ci}" style="margin:2px 3px 4px;"></div>`;
+          html+=`<div class="staff-wrap" id="staff-${ci}" style="margin:2px 3px 4px;"></div>`;
         } else if(mode===3){
           html+=`<div class="staff-wrap" id="staff-${ci}" style="margin:2px 3px 4px;"></div>`;
         }
@@ -612,12 +607,8 @@ function renderCompasBlock(c,ci,mode,compas,numGroups,bpg){
     }
     html+='</div>';
   } else if(mode===2){
-    html+=`<div class="viewer-cells">`;
-    for(let gi=0;gi<numGroups;gi++){
-      if(gi>0)html+='<div class="viewer-beat-sep"></div>';
-      for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,1,ci,ni,false);}
-    }
-    html+=`</div><div class="staff-wrap" id="staff-${ci}"></div>`;
+    // Unified SVG: color blocks + staff perfectly aligned
+    html+=`<div class="staff-wrap" id="staff-${ci}"></div>`;
   } else if(mode===3){
     html+=`<div class="staff-wrap" id="staff-${ci}"></div>`;
   }
@@ -650,19 +641,37 @@ function renderViewerNote(nota,mode,ci,ni,compact=false){
 
 function renderVexFlowStaff(compasData,compasStr,divEl){
   divEl.innerHTML='';
+  const mode=state.student.mode;
+  const showColors=(mode===2);
+  const showLabels=(mode===2||mode===3);
   try{
     const {Renderer,Stave,StaveNote,Voice,Formatter,Accidental,Dot}=Vex.Flow;
     const notas=(compasData.notas||[]).filter(n=>n&&n!=='skip');
     if(!notas.length)return;
-    const W=Math.max(340,notas.length*65+120),H=130;
+
+    const NOTE_SLOT=Math.max(52, Math.floor((divEl.parentElement?.offsetWidth||600)/Math.max(notas.length,1)));
+    const CLEF_W=50;
+    const W=Math.max(320, notas.length*NOTE_SLOT+CLEF_W+30);
+
+    // Heights: color blocks on top (if parallel), then staff
+    const COLOR_H=showColors?52:0;
+    const LABEL_H=showLabels?16:0;
+    const STAFF_TOP=COLOR_H+4;
+    const STAFF_H=90;
+    const H=STAFF_TOP+STAFF_H;
+
     const renderer=new Renderer(divEl,Renderer.Backends.SVG);
     renderer.resize(W,H);
     const ctx=renderer.getContext();
-    const stave=new Stave(10,22,W-20);
+
+    // Draw staff
+    const stave=new Stave(10,STAFF_TOP,W-20);
     stave.addClef('treble').addTimeSignature(compasStr);
     stave.setContext(ctx).draw();
+
     const [numStr,denStr]=compasStr.split('/');
     const totalQuarters=parseInt(numStr)*(4/parseInt(denStr));
+
     const vexNotes=notas.map(nota=>{
       if(nota.type==='rest'){
         const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
@@ -686,11 +695,103 @@ function renderVexFlowStaff(compasData,compasStr,divEl){
       if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});
       return sn;
     });
+
     const voice=new Voice({num_beats:totalQuarters,beat_value:4});
     voice.setMode(Voice.Mode.SOFT);
     voice.addTickables(vexNotes);
-    new Formatter().joinVoices([voice]).format([voice],W-120);
+    new Formatter().joinVoices([voice]).format([voice],W-CLEF_W-30);
     voice.draw(ctx,stave);
+
+    // After drawing, get X positions of each note to align color blocks
+    const svgEl=divEl.querySelector('svg');
+    if(!svgEl) return;
+
+    // Get note head X positions from rendered SVG noteheads
+    const noteHeads=svgEl.querySelectorAll('.vf-notehead path, .vf-notehead use, .vf-note .vf-notehead');
+    let noteXPositions=[];
+
+    // Use tickable absolute X positions (more reliable)
+    vexNotes.forEach((sn,idx)=>{
+      try{
+        const ax=sn.getAbsoluteX();
+        if(ax) noteXPositions.push(ax);
+      }catch(e){}
+    });
+
+    // Fallback: evenly space if we can't get positions
+    if(noteXPositions.length!==notas.length){
+      noteXPositions=notas.map((_,i)=>CLEF_W+20+(i+0.5)*((W-CLEF_W-30)/notas.length));
+    }
+
+    // Draw color blocks and/or labels on SVG for each note
+    notas.forEach((nota,i)=>{
+      const x=noteXPositions[i]||0;
+      if(!x) return;
+      const color=nota.type==='note'?(NOTE_COLORS[nota.key]||'#888'):'#ccc';
+      const noteName=nota.type==='note'?NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]:'𝄽';
+      const altS=nota.type==='note'?altSym(nota.alt):'';
+      const octSuf=nota.type==='note'?(OCTAVAS[nota.oct]?.suffix||''):'';
+      const tc=nota.type==='note'?(NOTE_TEXT[nota.key]||'white'):'#888';
+
+      if(showColors){
+        // Color block above staff
+        const bw=Math.min(NOTE_SLOT-4,44);
+        const bh=COLOR_H-6;
+        const bx=x-bw/2;
+        const by=2;
+        // Rounded rect
+        const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x',bx);rect.setAttribute('y',by);
+        rect.setAttribute('width',bw);rect.setAttribute('height',bh);
+        rect.setAttribute('rx','6');rect.setAttribute('fill',color);
+        rect.setAttribute('stroke','rgba(0,0,0,0.15)');rect.setAttribute('stroke-width','1');
+        svgEl.appendChild(rect);
+
+        // Note name inside block
+        const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+        txt.setAttribute('x',x);txt.setAttribute('y',by+bh*0.45);
+        txt.setAttribute('text-anchor','middle');txt.setAttribute('dominant-baseline','middle');
+        txt.setAttribute('font-size','11');txt.setAttribute('font-weight','800');
+        txt.setAttribute('font-family','Nunito,sans-serif');txt.setAttribute('fill',tc);
+        txt.textContent=altS+noteName;
+        svgEl.appendChild(txt);
+
+        // Octave suffix small
+        if(octSuf){
+          const txts=document.createElementNS('http://www.w3.org/2000/svg','text');
+          txts.setAttribute('x',x+bw/2-4);txts.setAttribute('y',by+bh-4);
+          txts.setAttribute('text-anchor','end');txts.setAttribute('font-size','8');
+          txts.setAttribute('font-family','Nunito,sans-serif');txts.setAttribute('fill',tc);txts.setAttribute('opacity','0.8');
+          txts.textContent=octSuf;
+          svgEl.appendChild(txts);
+        }
+
+        // Connector line from block to notehead
+        const lineTop=by+bh;
+        const lineBot=STAFF_TOP;
+        if(lineBot>lineTop+2){
+          const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+          line.setAttribute('x1',x);line.setAttribute('y1',lineTop);
+          line.setAttribute('x2',x);line.setAttribute('y2',lineBot);
+          line.setAttribute('stroke',color);line.setAttribute('stroke-width','1.5');
+          line.setAttribute('stroke-dasharray','3,2');line.setAttribute('opacity','0.5');
+          svgEl.appendChild(line);
+        }
+      } else if(showLabels && nota.type==='note'){
+        // Mode 3: just note name below/above the note on the staff
+        const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+        const oct=(nota.oct||0)+4;
+        const labelY=oct>=5?(STAFF_TOP-8):(STAFF_TOP+STAFF_H-8);
+        const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+        lbl.setAttribute('x',x);lbl.setAttribute('y',labelY);
+        lbl.setAttribute('text-anchor','middle');lbl.setAttribute('font-size','9');
+        lbl.setAttribute('font-weight','800');lbl.setAttribute('font-family','Nunito,sans-serif');
+        lbl.setAttribute('fill',color);
+        lbl.textContent=altS+noteName;
+        svgEl.appendChild(lbl);
+      }
+    });
+
   }catch(err){
     divEl.innerHTML='<p style="color:#aaa;font-size:0.75rem;padding:8px">Error al renderizar el pentagrama</p>';
     console.error('VexFlow:',err);
