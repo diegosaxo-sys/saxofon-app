@@ -157,7 +157,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 /* VIEWER */
 .viewer-wrap{flex:1;overflow-y:auto;padding:1rem;}
-.viewer-compas{margin-bottom:0.85rem;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);}
+.viewer-compas{margin-bottom:0.85rem;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);overflow:visible;box-shadow:var(--shadow);}
 .viewer-compas-header{padding:0.3rem 0.75rem;font-size:0.7rem;color:var(--muted);font-family:var(--mono);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;font-weight:700;}
 .viewer-cells{display:flex;padding:8px;gap:5px;flex-wrap:wrap;align-items:center;min-height:68px;}
 .viewer-beat-sep{width:1.5px;height:40px;background:var(--border);flex-shrink:0;align-self:center;}
@@ -169,14 +169,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .vnote-rest{background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;}
 
 /* STAFF */
-.staff-wrap{background:white;border-radius:var(--radius-sm);padding:4px;margin:4px 6px 8px;overflow-x:auto;border:1px solid var(--border);}
-.staff-wrap svg{display:block;}
+.staff-wrap{background:white;border-radius:var(--radius-sm);padding:0;margin:4px 6px 8px;overflow:visible;border:1px solid var(--border);display:block;width:calc(100% - 12px);}
+.staff-wrap svg{display:block;width:100%;height:auto;overflow:visible;}
 .svn-ring{transition:opacity 0.08s;}
 .svn-active .svn-ring{opacity:0.2;}
 
 /* Multi-compas row */
-.compases-row{display:flex;gap:0;margin-bottom:0.75rem;border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);}
-.compases-row .viewer-compas{margin-bottom:0;border:none;border-radius:0;border-right:2px solid var(--border);box-shadow:none;flex:1;min-width:0;}
+.compases-row{display:flex;gap:0;margin-bottom:0.75rem;border:1.5px solid var(--border);border-radius:var(--radius);overflow:visible;box-shadow:var(--shadow);}
+.compases-row .viewer-compas{margin-bottom:0;border:none;border-radius:0;border-right:2px solid var(--border);box-shadow:none;flex:1;min-width:0;overflow:visible;}
 .compases-row .viewer-compas:last-child{border-right:none;}
 .compases-row .viewer-cells{flex-wrap:nowrap;overflow-x:auto;min-height:60px;}
 
@@ -782,15 +782,15 @@ function renderVexFlowStaff(compasData,compasStr,divEl,mode){
     // BLOCK: colour block (mode 2 only)
     // GAP: space between block and staff
     // LEDGER extra space above/below staff for ledger lines
-    const LABEL_H=18;
-    const BLOCK_H=showColors?48:0;
-    const GAP=8;
-    const LEDGER_TOP=16;  // extra space above staff for ledger lines (high notes)
-    const LEDGER_BOT=16;  // extra space below staff for ledger lines (low notes)
-    const LINE_SP=10;     // space between staff lines
-    const STAFF_LINES_H=4*LINE_SP; // 5 lines = 4 gaps
+    const LABEL_H=20;
+    const BLOCK_H=showColors?52:0;
+    const GAP=10;
+    const LEDGER_TOP=24;  // generous space above staff for high notes + ledger lines
+    const LEDGER_BOT=20;  // generous space below staff for low notes + ledger lines
+    const LINE_SP=10;
+    const STAFF_LINES_H=4*LINE_SP;
     const STAFF_TOP=LABEL_H+BLOCK_H+GAP+LEDGER_TOP;
-    const H=STAFF_TOP+STAFF_LINES_H+LEDGER_BOT+10;
+    const H=STAFF_TOP+STAFF_LINES_H+LEDGER_BOT+16;
 
     const CLEF_W=54;
     const SLOT=Math.max(65,Math.min(110,Math.floor((divEl.parentElement?.offsetWidth||700)/Math.max(notas.length,1))));
@@ -836,6 +836,16 @@ function renderVexFlowStaff(compasData,compasStr,divEl,mode){
 
     const svgEl=divEl.querySelector('svg');
     if(!svgEl)return;
+
+    // Set viewBox so SVG scales responsively without clipping
+    svgEl.setAttribute('viewBox',`0 0 ${W} ${H}`);
+    svgEl.setAttribute('preserveAspectRatio','xMinYMin meet');
+    svgEl.style.width='100%';
+    svgEl.style.height='auto';
+    svgEl.style.display='block';
+    svgEl.style.overflow='visible';
+    // Make sure container is tall enough
+    divEl.style.minHeight=`${H}px`;
 
     // Get X positions
     const xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
