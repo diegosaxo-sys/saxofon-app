@@ -7,11 +7,11 @@
 <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;900&family=Space+Mono:wght@400;700&display=swap');
-:root {
+:root{
   --do:#E53935;--re:#E64A19;--mi:#F9A825;--fa:#2E7D32;--sol:#1565C0;--la:#6A1B9A;--si:#AD1457;
   --bg:#F5F0E8;--surface:#FFFDF7;--surface2:#EDE8DC;--border:#C8BFA8;--border2:#A89880;
   --text:#2C2416;--muted:#7A6E5F;--text-light:#5A4E3F;
-  --accent:#5B4FCF;--accent2:#C2185B;--accent-bg:#EDE9FF;--accent2-bg:#FCE4EC;
+  --accent:#5B4FCF;--accent2:#C2185B;--accent-bg:#EDE9FF;
   --radius:12px;--radius-sm:8px;--shadow:0 2px 8px rgba(0,0,0,0.10);
   --font:'Nunito',sans-serif;--mono:'Space Mono',monospace;
 }
@@ -19,6 +19,8 @@
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overscroll-behavior:none;}
 .screen{display:none;min-height:100vh;flex-direction:column;}
 .screen.active{display:flex;}
+
+/* HOME */
 #screen-home{align-items:center;justify-content:center;gap:2rem;padding:2rem;background:radial-gradient(ellipse at 30% 30%,#EDE0C4 0%,var(--bg) 65%);}
 .home-logo{text-align:center;}
 .home-logo .sax-icon{font-size:5rem;display:block;margin-bottom:0.5rem;}
@@ -29,17 +31,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .home-card{background:var(--surface);border:2px solid var(--border);border-radius:var(--radius);padding:2rem 1.5rem;text-align:center;cursor:pointer;transition:all 0.2s;box-shadow:var(--shadow);}
 .home-card:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,0.13);}
 .home-card .icon{font-size:2.8rem;display:block;margin-bottom:0.75rem;}
-.home-card h2{font-size:1.25rem;font-weight:800;color:var(--text);}
+.home-card h2{font-size:1.25rem;font-weight:800;}
 .home-card p{color:var(--muted);font-size:0.85rem;margin-top:0.3rem;}
 .home-card.teacher:hover{border-color:var(--accent);}
 .home-card.student:hover{border-color:var(--accent2);}
+
+/* TOPBAR */
 .topbar{display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1rem;background:var(--surface);border-bottom:2px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--shadow);}
 .topbar-back{background:none;border:1.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:0.4rem 0.75rem;cursor:pointer;font-family:var(--font);font-size:0.9rem;font-weight:600;transition:all 0.2s;}
 .topbar-back:hover{border-color:var(--accent);color:var(--accent);}
 .topbar h2{font-size:1.05rem;font-weight:800;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.topbar-action{background:var(--accent);border:none;color:white;border-radius:var(--radius-sm);padding:0.5rem 1.1rem;cursor:pointer;font-family:var(--font);font-size:0.9rem;font-weight:700;transition:opacity 0.2s;white-space:nowrap;}
+.topbar-action{background:var(--accent);border:none;color:white;border-radius:var(--radius-sm);padding:0.5rem 1.1rem;cursor:pointer;font-family:var(--font);font-size:0.9rem;font-weight:700;white-space:nowrap;transition:opacity 0.2s;}
 .topbar-action:hover{opacity:0.85;}
 .topbar-action:disabled{opacity:0.4;cursor:not-allowed;}
+
+/* LISTS */
 .list-body{padding:1rem;flex:1;overflow-y:auto;}
 .list-empty{text-align:center;color:var(--muted);padding:3rem 1rem;}
 .list-empty .icon{font-size:3rem;display:block;margin-bottom:1rem;}
@@ -51,38 +57,52 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .partitura-card-badge{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:0.25rem 0.65rem;font-size:0.78rem;color:var(--muted);white-space:nowrap;font-family:var(--mono);}
 .fab{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--accent);color:white;border:none;border-radius:50%;width:56px;height:56px;font-size:1.8rem;cursor:pointer;box-shadow:0 4px 16px rgba(91,79,207,0.4);transition:transform 0.2s;display:flex;align-items:center;justify-content:center;z-index:50;}
 .fab:hover{transform:scale(1.1);}
+
+/* EDITOR */
 .editor-config{display:flex;gap:0.5rem;padding:0.7rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);flex-wrap:wrap;align-items:center;}
 .editor-config input[type="text"]{flex:1;min-width:140px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:0.45rem 0.75rem;font-family:var(--font);font-size:0.95rem;font-weight:600;outline:none;}
 .editor-config input[type="text"]:focus{border-color:var(--accent);}
 .editor-config select{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:0.45rem 0.6rem;font-family:var(--font);font-size:0.85rem;font-weight:600;outline:none;cursor:pointer;}
+.import-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--text-light);border-radius:var(--radius-sm);padding:0.45rem 0.75rem;cursor:pointer;font-family:var(--font);font-size:0.85rem;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:0.4rem;}
+.import-btn:hover{border-color:var(--accent);color:var(--accent);}
+#xml-file-input{display:none;}
+
+/* LEGEND */
 .legend-bar{display:flex;gap:0.4rem;padding:0.4rem 1rem;background:var(--surface2);border-bottom:1.5px solid var(--border);flex-wrap:wrap;align-items:center;}
 .legend-item{display:flex;align-items:center;gap:0.3rem;font-size:0.75rem;color:var(--text-light);font-weight:600;}
 .legend-dot{width:14px;height:14px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,0.15);}
+
+/* NOTE PALETTE */
 .note-palette{padding:0.5rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .palette-row{display:flex;gap:0.3rem;align-items:center;flex-wrap:nowrap;padding-bottom:0.2rem;min-width:max-content;}
 .palette-label{font-size:0.68rem;color:var(--muted);white-space:nowrap;min-width:36px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;}
-.palette-sep{width:1.5px;height:30px;background:var(--border);margin:0 4px;flex-shrink:0;border-radius:1px;}
+.palette-sep{width:1.5px;height:30px;background:var(--border);margin:0 4px;flex-shrink:0;}
 .note-btn{border:2.5px solid transparent;border-radius:8px;padding:0.3rem 0.45rem;cursor:pointer;font-weight:800;font-family:var(--mono);transition:all 0.15s;white-space:nowrap;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:36px;}
 .note-btn:hover{opacity:0.8;transform:translateY(-2px);}
 .note-btn.selected{border-color:#2C2416;box-shadow:0 0 0 3px rgba(0,0,0,0.25);}
-.note-btn .nn{font-size:0.72rem;}
-.note-btn .na{font-size:0.58rem;opacity:0.85;}
+.note-btn .nn{font-size:0.72rem;}.note-btn .na{font-size:0.58rem;opacity:0.85;}
 .rest-btn{background:var(--surface2);border:2px solid var(--border);color:var(--muted);border-radius:8px;padding:0.3rem 0.55rem;cursor:pointer;font-size:0.75rem;font-weight:700;font-family:var(--mono);transition:all 0.15s;}
 .rest-btn:hover{border-color:var(--accent);}
 .rest-btn.selected{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);}
+
+/* ALTERACIONES */
 .alt-row{display:flex;gap:0.35rem;align-items:center;padding:0.35rem 1rem;background:var(--surface2);border-bottom:1.5px solid var(--border);flex-wrap:wrap;}
 .alt-label{font-size:0.68rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:0.06em;margin-right:0.2rem;}
-.alt-btn{background:var(--surface);border:1.5px solid var(--border);color:var(--text);border-radius:6px;padding:0.28rem 0.7rem;cursor:pointer;font-size:0.92rem;font-weight:700;transition:all 0.15s;line-height:1;}
+.alt-btn{background:var(--surface);border:1.5px solid var(--border);color:var(--text);border-radius:6px;padding:0.28rem 0.7rem;cursor:pointer;font-size:0.92rem;font-weight:700;transition:all 0.15s;}
 .alt-btn:hover{border-color:var(--accent);}
 .alt-btn.sel-sharp{background:#FFF3E0;border-color:#E65100;color:#E65100;}
 .alt-btn.sel-flat{background:#E3F2FD;border-color:#1565C0;color:#1565C0;}
 .alt-btn.sel-none{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+
+/* FIGURES */
 .figure-palette{padding:0.4rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;}
 .figure-label{font-size:0.68rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:0.06em;margin-right:0.2rem;}
 .fig-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--text-light);border-radius:var(--radius-sm);padding:0.3rem 0.6rem;cursor:pointer;font-family:var(--mono);font-size:0.8rem;font-weight:600;transition:all 0.15s;display:flex;align-items:center;gap:0.25rem;}
 .fig-btn:hover{border-color:var(--accent);}
 .fig-btn.selected{background:var(--accent);border-color:var(--accent);color:white;}
-.fig-sep{width:1.5px;height:22px;background:var(--border);margin:0 2px;border-radius:1px;}
+.fig-sep{width:1.5px;height:22px;background:var(--border);margin:0 2px;}
+
+/* TIMELINE */
 .editor-timeline-wrap{flex:1;overflow-y:auto;padding:1rem;}
 .compas-row{display:flex;align-items:stretch;gap:0.5rem;margin-bottom:0.6rem;}
 .compas-num{font-size:0.68rem;color:var(--muted);width:20px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);flex-shrink:0;font-weight:700;}
@@ -102,18 +122,40 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .add-compas-btn{width:100%;background:var(--surface);border:2px dashed var(--border);color:var(--muted);border-radius:var(--radius);padding:0.85rem;cursor:pointer;font-family:var(--font);font-size:0.95rem;font-weight:700;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-top:0.5rem;}
 .add-compas-btn:hover{border-color:var(--accent);color:var(--accent);}
 .info-msg{background:var(--accent-bg);border:1.5px solid rgba(91,79,207,0.3);border-radius:var(--radius-sm);padding:0.45rem 1rem;font-size:0.82rem;color:var(--accent);margin:0.4rem 1rem;font-weight:600;}
-.import-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--text-light);border-radius:var(--radius-sm);padding:0.45rem 0.75rem;cursor:pointer;font-family:var(--font);font-size:0.85rem;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:0.4rem;}
-.import-btn:hover{border-color:var(--accent);color:var(--accent);}
-#xml-file-input{display:none;}
-.mode-selector{padding:0.6rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);display:flex;gap:0.4rem;flex-wrap:wrap;box-shadow:var(--shadow);}
+
+/* STUDENT MODES */
+.mode-selector{padding:0.6rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);display:flex;gap:0.4rem;flex-wrap:wrap;}
 .mode-btn{flex:1;min-width:110px;background:var(--surface2);border:1.5px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:0.45rem 0.4rem;cursor:pointer;font-family:var(--font);font-size:0.76rem;font-weight:700;text-align:center;transition:all 0.2s;}
 .mode-btn:hover{border-color:var(--accent);color:var(--text);}
 .mode-btn.active{background:var(--accent);border-color:var(--accent);color:white;}
+
+/* LAYOUT BAR */
+.layout-bar{display:flex;gap:0.4rem;padding:0.4rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);align-items:center;flex-wrap:wrap;}
+.layout-label{font-size:0.72rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;}
+.layout-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:0.3rem 0.65rem;cursor:pointer;font-family:var(--mono);font-size:0.78rem;font-weight:700;transition:all 0.2s;}
+.layout-btn:hover{border-color:var(--accent);color:var(--text);}
+.layout-btn.active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+
+/* INSTRUMENT BAR */
 .instrument-bar{display:flex;gap:0.4rem;padding:0.45rem 1rem;background:var(--surface2);border-bottom:1.5px solid var(--border);align-items:center;flex-wrap:wrap;}
 .instrument-label{font-size:0.72rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:0.05em;}
 .inst-btn{background:var(--surface);border:1.5px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:0.3rem 0.7rem;cursor:pointer;font-family:var(--font);font-size:0.8rem;font-weight:700;transition:all 0.2s;}
 .inst-btn:hover{border-color:var(--accent);color:var(--text);}
 .inst-btn.active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+
+/* PRACTICE BAR — now at top */
+.practice-bar{padding:0.6rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;box-shadow:var(--shadow);}
+.bpm-control{display:flex;align-items:center;gap:0.5rem;flex:1;}
+.bpm-control input[type="range"]{flex:1;accent-color:var(--accent);}
+.bpm-display{font-family:var(--mono);font-size:0.85rem;min-width:58px;color:var(--text);font-weight:700;}
+.play-btn{background:var(--accent);border:none;color:white;border-radius:50%;width:42px;height:42px;font-size:1.1rem;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(91,79,207,0.35);flex-shrink:0;}
+.play-btn:hover{transform:scale(1.08);}
+.sound-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:0.3rem 0.65rem;cursor:pointer;font-family:var(--font);font-size:0.78rem;font-weight:700;transition:all 0.2s;white-space:nowrap;}
+.sound-btn.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+.fullscore-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--text-light);border-radius:var(--radius-sm);padding:0.3rem 0.65rem;cursor:pointer;font-family:var(--font);font-size:0.78rem;font-weight:700;transition:all 0.2s;white-space:nowrap;}
+.fullscore-btn:hover{border-color:var(--accent2);color:var(--accent2);}
+
+/* VIEWER */
 .viewer-wrap{flex:1;overflow-y:auto;padding:1rem;}
 .viewer-compas{margin-bottom:0.85rem;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);}
 .viewer-compas-header{padding:0.3rem 0.75rem;font-size:0.7rem;color:var(--muted);font-family:var(--mono);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;font-weight:700;}
@@ -125,25 +167,28 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .vnote-alt{font-size:0.72rem;font-weight:900;opacity:0.85;}
 .vnote-dur{font-size:0.55rem;opacity:0.65;font-family:var(--mono);}
 .vnote-rest{background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;}
-.staff-wrap{background:white;border-radius:var(--radius-sm);padding:6px 4px;margin:4px 6px 8px;overflow-x:auto;border:1px solid var(--border);}
-.layout-bar{display:flex;gap:0.4rem;padding:0.4rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);align-items:center;flex-wrap:wrap;}
-.layout-label{font-size:0.72rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;}
-.layout-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:0.3rem 0.65rem;cursor:pointer;font-family:var(--mono);font-size:0.78rem;font-weight:700;transition:all 0.2s;}
-.layout-btn:hover{border-color:var(--accent);color:var(--text);}
-.layout-btn.active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+
+/* STAFF */
+.staff-wrap{background:white;border-radius:var(--radius-sm);padding:4px;margin:4px 6px 8px;overflow-x:auto;border:1px solid var(--border);}
+.staff-wrap svg{display:block;}
+.svn-ring{transition:opacity 0.08s;}
+.svn-active .svn-ring{opacity:0.2;}
+
+/* Multi-compas row */
 .compases-row{display:flex;gap:0;margin-bottom:0.75rem;border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);}
 .compases-row .viewer-compas{margin-bottom:0;border:none;border-radius:0;border-right:2px solid var(--border);box-shadow:none;flex:1;min-width:0;}
 .compases-row .viewer-compas:last-child{border-right:none;}
 .compases-row .viewer-cells{flex-wrap:nowrap;overflow-x:auto;min-height:60px;}
-.compas-row-num{font-size:0.65rem;color:var(--muted);font-family:var(--mono);font-weight:700;padding:0.15rem 0.5rem;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;}
-.practice-bar{padding:0.7rem 1rem;background:var(--surface);border-top:2px solid var(--border);display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;box-shadow:0 -2px 8px rgba(0,0,0,0.07);}
-.bpm-control{display:flex;align-items:center;gap:0.5rem;flex:1;}
-.bpm-control input[type="range"]{flex:1;accent-color:var(--accent);}
-.bpm-display{font-family:var(--mono);font-size:0.85rem;min-width:58px;color:var(--text);font-weight:700;}
-.play-btn{background:var(--accent);border:none;color:white;border-radius:50%;width:46px;height:46px;font-size:1.2rem;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(91,79,207,0.35);flex-shrink:0;}
-.play-btn:hover{transform:scale(1.08);}
-.sound-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:0.35rem 0.7rem;cursor:pointer;font-family:var(--font);font-size:0.8rem;font-weight:700;transition:all 0.2s;}
-.sound-btn.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+
+/* FULL SCORE overlay */
+.fullscore-overlay{position:fixed;inset:0;background:white;z-index:500;display:none;flex-direction:column;overflow:hidden;}
+.fullscore-overlay.open{display:flex;}
+.fullscore-topbar{display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;background:var(--surface);border-bottom:2px solid var(--border);flex-shrink:0;}
+.fullscore-topbar h2{flex:1;font-size:1rem;font-weight:800;}
+.fullscore-body{flex:1;overflow-y:auto;padding:1.5rem;background:white;}
+.fullscore-hint{font-size:0.8rem;color:var(--muted);margin-bottom:1rem;font-style:italic;}
+
+/* Modal */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:center;justify-content:center;padding:1rem;}
 .modal-overlay.open{display:flex;}
 .modal{background:var(--surface);border:2px solid var(--border);border-radius:var(--radius);padding:1.5rem;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.15);}
@@ -152,15 +197,29 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .btn-secondary{background:none;border:1.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:0.5rem 1rem;cursor:pointer;font-family:var(--font);font-size:0.9rem;font-weight:600;transition:all 0.2s;}
 .btn-secondary:hover{border-color:var(--accent);}
 .btn-danger{background:#c62828;border:none;color:white;border-radius:var(--radius-sm);padding:0.5rem 1rem;cursor:pointer;font-family:var(--font);font-size:0.9rem;font-weight:700;}
+
+/* Toast */
 .toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--text);color:var(--bg);padding:0.6rem 1.4rem;border-radius:40px;font-size:0.9rem;font-weight:600;z-index:300;transition:transform 0.3s;white-space:nowrap;}
 .toast.show{transform:translateX(-50%) translateY(0);}
+
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
-@media(max-width:600px){.home-logo h1{font-size:2.2rem;}.note-btn{padding:0.25rem 0.3rem;min-width:28px;}.fig-btn{padding:0.25rem 0.45rem;font-size:0.75rem;}}
+@media(max-width:600px){
+  .home-logo h1{font-size:2.2rem;}
+  .note-btn{padding:0.25rem 0.3rem;min-width:28px;}
+  .fig-btn{padding:0.25rem 0.45rem;font-size:0.75rem;}
+  .mode-btn{min-width:80px;font-size:0.7rem;}
+}
+@media print{
+  .fullscore-topbar{display:none;}
+  .fullscore-body{padding:0;}
+}
 </style>
 </head>
 <body>
+
+<!-- HOME -->
 <div id="screen-home" class="screen active">
   <div class="home-logo"><span class="sax-icon">🎷</span><h1>SaxoApp</h1><p>Partituras visuales de saxofón</p></div>
   <div class="home-cards">
@@ -168,11 +227,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="home-card student" onclick="goTo('student-list')"><span class="icon">🎓</span><h2>Alumno</h2><p>Ver y practicar partituras</p></div>
   </div>
 </div>
+
+<!-- TEACHER LIST -->
 <div id="screen-teacher-list" class="screen">
   <div class="topbar"><button class="topbar-back" onclick="goTo('home')">← Inicio</button><h2>👩‍🏫 Mis Partituras</h2></div>
   <div class="list-body" id="teacher-list-body"><div class="list-empty"><span class="icon">🎼</span><p>No hay partituras todavía.<br>Pulsa + para crear una.</p></div></div>
   <button class="fab" onclick="newPartitura()">+</button>
 </div>
+
+<!-- TEACHER EDITOR -->
 <div id="screen-teacher-editor" class="screen">
   <div class="topbar"><button class="topbar-back" onclick="goTo('teacher-list')">← Lista</button><h2 id="editor-title-bar">Nueva partitura</h2><button class="topbar-action" onclick="savePartitura()">Guardar</button></div>
   <div class="editor-config">
@@ -204,9 +267,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <button class="alt-btn" id="alt-flat" onclick="setAlt('flat')">♭ Bemol</button>
   </div>
   <div class="figure-palette"><span class="figure-label">Figura:</span><div id="fig-buttons"></div></div>
-  <div class="info-msg">Selecciona nota → figura → toca celda vacía para añadir. Toca una nota colocada para quitarla.</div>
+  <div class="info-msg">Selecciona nota → figura → toca celda vacía para añadir. Toca una nota para quitarla.</div>
   <div class="editor-timeline-wrap"><div id="editor-timeline"></div><button class="add-compas-btn" onclick="addCompas()">＋ Añadir compás</button><div style="height:1.5rem"></div></div>
 </div>
+
+<!-- STUDENT LIST -->
 <div id="screen-student-list" class="screen">
   <div class="topbar"><button class="topbar-back" onclick="goTo('home')">← Inicio</button><h2>🎓 Partituras</h2></div>
   <div class="instrument-bar">
@@ -218,14 +283,32 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
   <div class="list-body" id="student-list-body"><div class="list-empty"><span class="icon">🎼</span><p>No hay partituras disponibles todavía.</p></div></div>
 </div>
+
+<!-- STUDENT VIEW -->
 <div id="screen-student-view" class="screen">
   <div class="topbar"><button class="topbar-back" onclick="stopPlayback();goTo('student-list')">← Volver</button><h2 id="viewer-title">Partitura</h2></div>
+
+  <!-- PRACTICE BAR ARRIBA -->
+  <div class="practice-bar">
+    <button class="play-btn" id="play-btn" onclick="togglePlayback()">▶</button>
+    <div class="bpm-control">
+      <span style="font-size:0.78rem;color:var(--muted);font-weight:700;">BPM</span>
+      <input type="range" min="40" max="200" value="80" id="bpm-slider" oninput="updateBPM(this.value)">
+      <span class="bpm-display" id="bpm-display">80 BPM</span>
+    </div>
+    <button class="sound-btn on" id="sound-toggle" onclick="toggleSound()">🔊</button>
+    <button class="fullscore-btn" onclick="openFullScore()">📄 Ver partitura completa</button>
+  </div>
+
+  <!-- MODOS -->
   <div class="mode-selector">
     <button class="mode-btn active" id="mode-btn-0" onclick="setMode(0)">🎨 Solo colores</button>
     <button class="mode-btn" id="mode-btn-1" onclick="setMode(1)">🔤 Colores+letras</button>
     <button class="mode-btn" id="mode-btn-2" onclick="setMode(2)">⚡ Paralela</button>
     <button class="mode-btn" id="mode-btn-3" onclick="setMode(3)">🎵 Pentagrama</button>
   </div>
+
+  <!-- COMPASES POR LÍNEA -->
   <div class="layout-bar">
     <span class="layout-label">Compases por línea:</span>
     <button class="layout-btn active" id="lay-btn-1" onclick="setLayout(1)">1</button>
@@ -233,6 +316,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <button class="layout-btn" id="lay-btn-4" onclick="setLayout(4)">4</button>
     <button class="layout-btn" id="lay-btn-8" onclick="setLayout(8)">8</button>
   </div>
+
+  <!-- LEYENDA -->
   <div class="legend-bar" id="viewer-legend">
     <span class="legend-item"><span class="legend-dot" style="background:var(--do)"></span>Do</span>
     <span class="legend-item"><span class="legend-dot" style="background:var(--re)"></span>Re</span>
@@ -242,17 +327,24 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <span class="legend-item"><span class="legend-dot" style="background:var(--la)"></span>La</span>
     <span class="legend-item"><span class="legend-dot" style="background:var(--si)"></span>Si</span>
   </div>
+
   <div class="viewer-wrap" id="viewer-wrap"></div>
-  <div class="practice-bar">
-    <div class="bpm-control">
-      <span style="font-size:0.82rem;color:var(--muted);font-weight:700;">BPM</span>
-      <input type="range" min="40" max="200" value="80" id="bpm-slider" oninput="updateBPM(this.value)">
-      <span class="bpm-display" id="bpm-display">80 BPM</span>
-    </div>
-    <button class="sound-btn on" id="sound-toggle" onclick="toggleSound()">🔊 Sonido</button>
-    <button class="play-btn" id="play-btn" onclick="togglePlayback()">▶</button>
+</div>
+
+<!-- FULL SCORE OVERLAY -->
+<div class="fullscore-overlay" id="fullscore-overlay">
+  <div class="fullscore-topbar">
+    <button class="topbar-back" onclick="closeFullScore()">← Cerrar</button>
+    <h2 id="fullscore-title">Partitura completa</h2>
+    <button class="topbar-action" onclick="printFullScore()">🖨️ Guardar / Imprimir</button>
+  </div>
+  <div class="fullscore-body" id="fullscore-body">
+    <p class="fullscore-hint">Usa el botón "Guardar / Imprimir" → "Guardar como PDF" para exportar como imagen.</p>
+    <div id="fullscore-content"></div>
   </div>
 </div>
+
+<!-- Modal -->
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal">
     <h3 id="modal-title">¿Eliminar partitura?</h3>
@@ -264,12 +356,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
 </div>
 <div class="toast" id="toast"></div>
+
 <script>
+// ═══════════════════ CONSTANTS ═══════════════════
 const NOTE_NAMES=['Do','Re','Mi','Fa','Sol','La','Si'];
 const NOTE_KEYS=['do','re','mi','fa','sol','la','si'];
 const NOTE_COLORS={do:'#E53935',re:'#E64A19',mi:'#F9A825',fa:'#2E7D32',sol:'#1565C0',la:'#6A1B9A',si:'#AD1457'};
 const NOTE_TEXT={do:'white',re:'white',mi:'#1a1000',fa:'white',sol:'white',la:'white',si:'white'};
-const OCTAVAS=[{label:'Grave',suffix:'₁',sl:'G'},{label:'Medio',suffix:'₂',sl:'M'},{label:'Agudo',suffix:'₃',sl:'A'}];
+const OCTAVAS=[{suffix:'₁',sl:'G'},{suffix:'₂',sl:'M'},{suffix:'₃',sl:'A'}];
 const FIGURES=[
   {id:'redonda',name:'Redonda',glyph:'𝅝',vex:'w',val:16,dot_val:24},
   {id:'blanca',name:'Blanca',glyph:'𝅗𝅥',vex:'h',val:8,dot_val:12},
@@ -280,9 +374,31 @@ const FIGURES=[
 const COMPAS_BEATS={'2/4':8,'3/4':12,'4/4':16,'6/8':12,'9/8':18,'12/8':24};
 const COMPAS_GROUPS={'2/4':2,'3/4':3,'4/4':4,'6/8':2,'9/8':3,'12/8':4};
 const INSTRUMENT_NAMES={alto:'Alto',tenor:'Tenor',soprano:'Soprano',baritono:'Barítono'};
-const BASE_FREQ={'do-0':261.63,'re-0':293.66,'mi-0':329.63,'fa-0':349.23,'sol-0':392.00,'la-0':440.00,'si-0':493.88,'do-1':523.25,'re-1':587.33,'mi-1':659.25,'fa-1':698.46,'sol-1':783.99,'la-1':880.00,'si-1':987.77,'do-2':1046.50,'re-2':1174.66,'mi-2':1318.51,'fa-2':1396.91,'sol-2':1567.98,'la-2':1760.00,'si-2':1975.53};
 const VEX_NOTE_MAP={do:'c',re:'d',mi:'e',fa:'f',sol:'g',la:'a',si:'b'};
 
+// Transposition in semitones (written → concert pitch offset for sound)
+// Alto: sounds M6 below written → -9 semitones from written
+// Tenor: sounds M9 below written → -14
+// Soprano: sounds M2 below written → -2
+// Baritono: sounds M13 below written → -21
+const INST_TRANSPOSE_SEMITONES={alto:-9,tenor:-14,soprano:-2,baritono:-21};
+
+// Concert frequencies for Do4 (C4=261.63) scale
+const BASE_FREQ_C4={do:261.63,re:293.66,mi:329.63,fa:349.23,sol:392.00,la:440.00,si:493.88};
+
+function noteFreq(key,oct,alt,instrument){
+  // Written pitch base freq
+  const baseOctMult=Math.pow(2,oct); // oct0=1, oct1=2, oct2=4
+  let freq=BASE_FREQ_C4[key]*baseOctMult;
+  if(alt==='sharp') freq*=Math.pow(2,1/12);
+  if(alt==='flat')  freq*=Math.pow(2,-1/12);
+  // Apply transposition for instrument (written→concert)
+  const semitones=INST_TRANSPOSE_SEMITONES[instrument]||INST_TRANSPOSE_SEMITONES.alto;
+  freq*=Math.pow(2,semitones/12);
+  return freq;
+}
+
+// ═══════════════════ STATE ═══════════════════
 let state={
   screen:'home',
   editor:{id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null},
@@ -291,6 +407,7 @@ let state={
 let audioCtx=null;
 function getAudioCtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
 
+// ═══════════════════ NAV ═══════════════════
 function goTo(screen){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+screen).classList.add('active');
@@ -309,6 +426,7 @@ async function apiPost(p,d){const r=await fetch(p,{method:'POST',headers:{'Conte
 async function apiPut(p,d){const r=await fetch(p,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});return r.json();}
 async function apiDel(p){const r=await fetch(p,{method:'DELETE'});return r.json();}
 
+// ═══════════════════ TEACHER LIST ═══════════════════
 async function loadTeacherList(){
   const lista=await apiGet('/api/partituras');
   const body=document.getElementById('teacher-list-body');
@@ -320,20 +438,18 @@ async function loadTeacherList(){
     <button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:0.3rem 0.5rem;" onclick="event.stopPropagation();confirmDelete('${p.id}','${escHtml(p.titulo||'Sin título')}')">🗑</button>
   </div>`).join('');
 }
+function confirmDelete(id,titulo){openModal('Eliminar partitura',`¿Eliminar "${titulo}"? No se puede deshacer.`,async()=>{await apiDel('/api/partituras/'+id);showToast('Partitura eliminada');loadTeacherList();});}
 
-function confirmDelete(id,titulo){openModal('Eliminar partitura',`¿Eliminar "${titulo}"? Esta acción no se puede deshacer.`,async()=>{await apiDel('/api/partituras/'+id);showToast('Partitura eliminada');loadTeacherList();});}
-
+// ═══════════════════ TEACHER EDITOR ═══════════════════
 function newPartitura(){
   state.editor={id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
   renderEditorUI();addCompas();goTo('teacher-editor');
 }
-
 async function editPartitura(id){
   const p=await apiGet('/api/partituras/'+id);
   state.editor={id:p.id,titulo:p.titulo||'',compas:p.compas||'4/4',instrument:p.instrument||'alto',compases:p.compases||[],selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
   renderEditorUI();renderTimeline();goTo('teacher-editor');
 }
-
 function renderEditorUI(){
   document.getElementById('ed-titulo').value=state.editor.titulo;
   document.getElementById('ed-compas').value=state.editor.compas;
@@ -341,13 +457,11 @@ function renderEditorUI(){
   document.getElementById('editor-title-bar').textContent=state.editor.id?'Editar partitura':'Nueva partitura';
   renderNotePalette();renderAltButtons();renderFigurePalette();
 }
-
 function onCompasChange(){
   state.editor.compas=document.getElementById('ed-compas').value;
   state.editor.compases=state.editor.compases.map(c=>({notas:padOrTrunc(c.notas,COMPAS_BEATS[state.editor.compas])}));
   renderTimeline();
 }
-
 function padOrTrunc(arr,len){const c=arr.slice(0,len);while(c.length<len)c.push(null);return c;}
 
 function renderNotePalette(){
@@ -366,7 +480,6 @@ function renderNotePalette(){
   });
   html+='</div>';pal.innerHTML=html;
 }
-
 function selectNote(note){state.editor.selectedNote=note;renderNotePalette();}
 function setAlt(alt){state.editor.selectedAlt=alt;renderAltButtons();}
 function renderAltButtons(){
@@ -375,7 +488,6 @@ function renderAltButtons(){
   document.getElementById('alt-sharp').className='alt-btn'+(alt==='sharp'?' sel-sharp':'');
   document.getElementById('alt-flat').className='alt-btn'+(alt==='flat'?' sel-flat':'');
 }
-
 function renderFigurePalette(){
   const selFig=state.editor.selectedFig,selDot=state.editor.selectedDot;
   let html='';
@@ -385,12 +497,10 @@ function renderFigurePalette(){
   html+=`<button class="fig-btn${selDot?' selected':''}" onclick="toggleDot()" ${canDot?'':'disabled style="opacity:0.35"'}>· Puntillo</button>`;
   document.getElementById('fig-buttons').innerHTML=html;
 }
-
 function selectFig(id){state.editor.selectedFig=id;const fig=FIGURES.find(f=>f.id===id);if(!fig||!fig.dot_val)state.editor.selectedDot=false;renderFigurePalette();}
 function toggleDot(){const fig=FIGURES.find(f=>f.id===state.editor.selectedFig);if(fig&&fig.dot_val)state.editor.selectedDot=!state.editor.selectedDot;renderFigurePalette();}
 
 function addCompas(){state.editor.compases.push({notas:Array(COMPAS_BEATS[state.editor.compas]).fill(null)});renderTimeline();}
-
 function getCellSize(val){return Math.min(34+val*4,90);}
 function altSym(alt){return alt==='sharp'?'♯':alt==='flat'?'♭':'';}
 
@@ -425,7 +535,6 @@ function renderTimeline(){
   });
   container.innerHTML=html;
 }
-
 function placeNote(ci,ni){
   const sel=state.editor.selectedNote;
   if(!sel){showToast('Selecciona primero una nota o silencio');return;}
@@ -435,10 +544,8 @@ function placeNote(ci,ni){
   if(ni+val>totalBeats){showToast('No hay espacio suficiente en este compás');return;}
   for(let i=ni;i<ni+val;i++){if(c.notas[i]!==null){showToast('Hay notas en ese espacio. Elimínalas primero.');return;}}
   const nota=sel.type==='rest'?{type:'rest',fig:fig.id,dot}:{type:'note',key:sel.key,oct:sel.oct,fig:fig.id,dot,alt:state.editor.selectedAlt};
-  c.notas[ni]=nota;for(let i=ni+1;i<ni+val;i++)c.notas[i]='skip';
-  renderTimeline();
+  c.notas[ni]=nota;for(let i=ni+1;i<ni+val;i++)c.notas[i]='skip';renderTimeline();
 }
-
 function removeNote(ci,ni){
   const c=state.editor.compases[ci],nota=c.notas[ni];
   if(!nota||nota==='skip')return;
@@ -446,9 +553,7 @@ function removeNote(ci,ni){
   const val=nota.dot&&fig.dot_val?fig.dot_val:fig.val;
   for(let i=ni;i<ni+val;i++)c.notas[i]=null;renderTimeline();
 }
-
 function deleteCompas(ci){state.editor.compases.splice(ci,1);renderTimeline();}
-
 async function savePartitura(){
   const titulo=document.getElementById('ed-titulo').value.trim();
   if(!titulo){showToast('Escribe un título para la partitura');return;}
@@ -459,15 +564,17 @@ async function savePartitura(){
   }catch(e){showToast('Error al guardar');}
 }
 
+// ═══════════════════ MUSICXML IMPORT (with ties) ═══════════════════
 function importMusicXML(event){
   const file=event.target.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=function(e){
-    try{const parser=new DOMParser();parseMusicXML(parser.parseFromString(e.target.result,'text/xml'));}
+  reader.onload=e=>{
+    try{parseMusicXML(new DOMParser().parseFromString(e.target.result,'text/xml'));}
     catch(err){showToast('Error al leer el archivo XML');}
   };
   reader.readAsText(file);event.target.value='';
 }
+function durToFig(s){if(s>=16)return 'redonda';if(s>=8)return 'blanca';if(s>=4)return 'negra';if(s>=2)return 'corchea';return 'semicorchea';}
 
 function parseMusicXML(xml){
   const measures=xml.querySelectorAll('measure');
@@ -481,41 +588,72 @@ function parseMusicXML(xml){
   const totalBeats=COMPAS_BEATS[compas];
   const newCompases=[];
   const divs=parseInt(xml.querySelector('divisions')?.textContent||'1');
+
+  // Track tied notes: key = "step+oct", value = position of start note
+  let tiedNotes={};
+
   measures.forEach(measure=>{
-    const notas=Array(totalBeats).fill(null);let pos=0;
+    const notas=Array(totalBeats).fill(null);
+    let pos=0;
     measure.querySelectorAll('note').forEach(noteEl=>{
+      // Skip chord notes (simultaneous)
+      if(noteEl.querySelector('chord'))return;
+
       const durVal=parseInt(noteEl.querySelector('duration')?.textContent||'1');
-      const quarters=durVal/divs;
-      const sixteenths=Math.max(1,Math.round(quarters*4));
+      const sixteenths=Math.max(1,Math.round((durVal/divs)*4));
+
+      // Check for tie
+      const tieEls=noteEl.querySelectorAll('tie');
+      const tieStart=Array.from(tieEls).some(t=>t.getAttribute('type')==='start');
+      const tieStop=Array.from(tieEls).some(t=>t.getAttribute('type')==='stop');
+
       if(noteEl.querySelector('rest')){
-        if(pos+sixteenths<=totalBeats){notas[pos]={type:'rest',fig:durToFig(sixteenths),dot:!!noteEl.querySelector('dot')};for(let i=pos+1;i<pos+sixteenths;i++)notas[i]='skip';pos+=sixteenths;}
-        return;
+        if(!tieStop&&pos+sixteenths<=totalBeats){
+          notas[pos]={type:'rest',fig:durToFig(sixteenths),dot:!!noteEl.querySelector('dot')};
+          for(let i=pos+1;i<pos+sixteenths;i++)notas[i]='skip';
+        }
+        pos+=sixteenths;return;
       }
+
       const step=noteEl.querySelector('step')?.textContent||'C';
       const xmlOct=parseInt(noteEl.querySelector('octave')?.textContent||'4');
       const alter=noteEl.querySelector('alter');
       const appOct=Math.max(0,Math.min(2,xmlOct-4));
       const key=NOTE_MAP_XML[step]||'do';
       const alt=alter?parseFloat(alter.textContent)>0?'sharp':parseFloat(alter.textContent)<0?'flat':null:null;
-      if(pos+sixteenths<=totalBeats){
-        notas[pos]={type:'note',key,oct:appOct,fig:durToFig(sixteenths),dot:!!noteEl.querySelector('dot'),alt};
-        for(let i=pos+1;i<pos+sixteenths;i++)notas[i]='skip';pos+=sixteenths;
+      const tieKey=`${step}${xmlOct}`;
+
+      if(tieStop&&tiedNotes[tieKey]!==undefined){
+        // Extend the tied note: just mark as skip, don't add new note
+        const startPos=tiedNotes[tieKey];
+        // Extend duration of original note by marking more skips
+        for(let i=pos;i<pos+sixteenths&&i<totalBeats;i++) notas[i]='skip';
+        if(tieStart) tiedNotes[tieKey]=startPos; // still tied
+        else delete tiedNotes[tieKey];
+      } else {
+        if(pos+sixteenths<=totalBeats){
+          notas[pos]={type:'note',key,oct:appOct,fig:durToFig(sixteenths),dot:!!noteEl.querySelector('dot'),alt,tied:tieStart};
+          for(let i=pos+1;i<pos+sixteenths;i++)notas[i]='skip';
+          if(tieStart) tiedNotes[tieKey]=pos;
+          else if(tieKey in tiedNotes) delete tiedNotes[tieKey];
+        }
       }
+      pos+=sixteenths;
     });
     newCompases.push({notas});
+    tiedNotes={}; // reset per measure (ties across barlines are rare edge case)
   });
+
   state.editor.compas=compas;state.editor.compases=newCompases;
   document.getElementById('ed-compas').value=compas;renderTimeline();
   showToast(`✓ Importados ${newCompases.length} compases desde MusicXML`);
 }
 
-function durToFig(s){if(s>=16)return 'redonda';if(s>=8)return 'blanca';if(s>=4)return 'negra';if(s>=2)return 'corchea';return 'semicorchea';}
-
+// ═══════════════════ STUDENT ═══════════════════
 function setStudentInstrument(inst){
   state.student.instrument=inst;
   ['alto','tenor','soprano','baritono'].forEach(i=>document.getElementById('sinst-'+i).classList.toggle('active',i===inst));
 }
-
 async function loadStudentList(){
   const lista=await apiGet('/api/partituras');
   const body=document.getElementById('student-list-body');
@@ -526,55 +664,45 @@ async function loadStudentList(){
     <span style="font-size:1.3rem;color:var(--muted)">→</span>
   </div>`).join('');
 }
-
 async function openPartitura(id){
   const p=await apiGet('/api/partituras/'+id);
-  state.student.current=p;state.student.mode=0;state.student.layout=1;state.student.playing=false;state.student.playPos=null;
+  state.student.current=p;state.student.mode=0;state.student.layout=1;
+  state.student.playing=false;state.student.playPos=null;
   document.getElementById('viewer-title').textContent=p.titulo||'Partitura';
   document.getElementById('bpm-slider').value=state.student.bpm;
   document.getElementById('bpm-display').textContent=state.student.bpm+' BPM';
   [1,2,4,8].forEach(v=>{const b=document.getElementById('lay-btn-'+v);if(b)b.classList.toggle('active',v===1);});
   setMode(0);goTo('student-view');
 }
-
 function setMode(mode){
   stopPlayback();state.student.mode=mode;
   for(let i=0;i<4;i++)document.getElementById('mode-btn-'+i).classList.toggle('active',i===mode);
   document.getElementById('viewer-legend').style.display=mode===3?'none':'flex';
   renderViewer();
 }
-
 function setLayout(n){
   state.student.layout=n;
-  [1,2,4,8].forEach(v=>{
-    const btn=document.getElementById('lay-btn-'+v);
-    if(btn) btn.classList.toggle('active',v===n);
-  });
+  [1,2,4,8].forEach(v=>{const b=document.getElementById('lay-btn-'+v);if(b)b.classList.toggle('active',v===n);});
   renderViewer();
 }
 
+// ═══════════════════ VIEWER ═══════════════════
 function renderViewer(){
   const p=state.student.current;
   if(!p||!p.compases||!p.compases.length){document.getElementById('viewer-wrap').innerHTML='<p style="color:var(--muted);padding:2rem;text-align:center">Esta partitura no tiene notas.</p>';return;}
   const mode=state.student.mode,layout=state.student.layout||1;
   const compas=p.compas||'4/4',numGroups=COMPAS_GROUPS[compas],totalBeats=COMPAS_BEATS[compas],bpg=totalBeats/numGroups;
-
-  // Group compases into rows of `layout` each
   const rows=[];
   for(let i=0;i<p.compases.length;i+=layout) rows.push(p.compases.slice(i,i+layout).map((c,j)=>({c,ci:i+j})));
-
   let html='';
   rows.forEach(row=>{
     if(layout===1){
-      // Single compas per row - original layout
       const {c,ci}=row[0];
       html+=renderCompasBlock(c,ci,mode,compas,numGroups,bpg);
     } else {
-      // Multiple compases in one row
       html+=`<div class="compases-row">`;
       row.forEach(({c,ci})=>{
-        html+=`<div class="viewer-compas">`;
-        html+=`<div class="compas-row-num"><span>Compás ${ci+1}</span><span>${compas}</span></div>`;
+        html+=`<div class="viewer-compas"><div class="viewer-compas-header"><span>Compás ${ci+1}</span><span>${compas}</span></div>`;
         if(mode===0||mode===1){
           html+=`<div class="viewer-cells">`;
           for(let gi=0;gi<numGroups;gi++){
@@ -582,9 +710,7 @@ function renderViewer(){
             for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,mode,ci,ni,true);}
           }
           html+='</div>';
-        } else if(mode===2){
-          html+=`<div class="staff-wrap" id="staff-${ci}" style="margin:2px 3px 4px;"></div>`;
-        } else if(mode===3){
+        } else {
           html+=`<div class="staff-wrap" id="staff-${ci}" style="margin:2px 3px 4px;"></div>`;
         }
         html+=`</div>`;
@@ -592,9 +718,13 @@ function renderViewer(){
       html+=`</div>`;
     }
   });
-
   document.getElementById('viewer-wrap').innerHTML=html;
-  if(mode===2||mode===3){p.compases.forEach((c,ci)=>{const div=document.getElementById('staff-'+ci);if(div)renderVexFlowStaff({...c,_ci:ci},p.compas||'4/4',div);});}
+  if(mode===2||mode===3){
+    p.compases.forEach((c,ci)=>{
+      const div=document.getElementById('staff-'+ci);
+      if(div) renderVexFlowStaff({...c,_ci:ci},p.compas||'4/4',div,mode);
+    });
+  }
 }
 
 function renderCompasBlock(c,ci,mode,compas,numGroups,bpg){
@@ -606,65 +736,65 @@ function renderCompasBlock(c,ci,mode,compas,numGroups,bpg){
       for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,mode,ci,ni,false);}
     }
     html+='</div>';
-  } else if(mode===2){
-    // Unified SVG: color blocks + staff perfectly aligned
-    html+=`<div class="staff-wrap" id="staff-${ci}"></div>`;
-  } else if(mode===3){
+  } else {
     html+=`<div class="staff-wrap" id="staff-${ci}"></div>`;
   }
-  html+='</div>';
-  return html;
+  html+='</div>';return html;
 }
 
 function renderViewerNote(nota,mode,ci,ni,compact=false){
   if(!nota||nota==='skip')return '';
   const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
   const dot=nota.dot&&fig.dot_val,val=dot?fig.dot_val:fig.val;
-  const maxSize=compact?52:84;
-  const baseSize=compact?28:38;
-  const size=Math.min(baseSize+val*3,maxSize);
-  const fontSize=size>44?'0.82':'0.65';
+  const maxS=compact?50:84,baseS=compact?28:38;
+  const size=Math.min(baseS+val*3,maxS);
+  const fs=size>44?'0.82':'0.65';
   const playActive=state.student.playing&&state.student.playPos&&state.student.playPos.ci===ci&&state.student.playPos.ni===ni;
   if(nota.type==='rest'){
     return `<div class="vnote vnote-rest${playActive?' active-note':''}" style="width:${size}px;height:${size}px;" id="vn-${ci}-${ni}">
       ${mode===1?'<span style="font-size:0.95rem">𝄽</span>':''}<span class="vnote-dur">${fig.glyph}${dot?'·':''}</span></div>`;
   }
-  const color=NOTE_COLORS[nota.key]||'#888',tc=NOTE_TEXT[nota.key]||'white';
+  const color=NOTE_COLORS[nota.key],tc=NOTE_TEXT[nota.key];
   const noteName=NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)],octSuf=OCTAVAS[nota.oct]?.suffix||'';
   return `<div class="vnote${playActive?' active-note':''}" style="width:${size}px;height:${size}px;background:${color};" id="vn-${ci}-${ni}">
     ${mode===1?`<span class="vnote-alt" style="color:${tc};font-size:0.65rem">${altSym(nota.alt)}</span>`:''}
-    ${mode===1?`<span class="vnote-name" style="font-size:${fontSize}rem;color:${tc}">${noteName}</span>`:''}
+    ${mode===1?`<span class="vnote-name" style="font-size:${fs}rem;color:${tc}">${noteName}</span>`:''}
     ${mode===1?`<span class="vnote-dur" style="color:${tc};font-size:0.5rem">${fig.glyph}${dot?'·':''}${octSuf}</span>`:''}
     ${nota.oct>0&&mode===0?`<span style="position:absolute;bottom:2px;right:3px;font-size:0.48rem;color:${tc};opacity:0.8">${octSuf}</span>`:''}
   </div>`;
 }
 
-function renderVexFlowStaff(compasData,compasStr,divEl){
+// ═══════════════════ VEXFLOW STAFF ═══════════════════
+function renderVexFlowStaff(compasData,compasStr,divEl,mode){
   divEl.innerHTML='';
-  const mode=state.student.mode;
   const showColors=(mode===2);
-  const showLabels=(mode===2||mode===3);
+  const showLabels=true; // always show labels above staff
   try{
     const {Renderer,Stave,StaveNote,Voice,Formatter,Accidental,Dot}=Vex.Flow;
-    // Keep original ni index for playback IDs
     const notasIdx=[];
     (compasData.notas||[]).forEach((nota,ni)=>{if(nota&&nota!=='skip')notasIdx.push({nota,ni});});
     if(!notasIdx.length)return;
     const notas=notasIdx.map(x=>x.nota);
     const ci=compasData._ci!==undefined?compasData._ci:0;
 
-    const SLOT=Math.max(62,Math.min(100,Math.floor((divEl.parentElement?.offsetWidth||700)/Math.max(notas.length,1))));
-    const CLEF_W=54;
-    const W=Math.max(340,notas.length*SLOT+CLEF_W+40);
+    // ── Sizes ──
+    // LABEL: name above block or above staff
+    // BLOCK: colour block (mode 2 only)
+    // GAP: space between block and staff
+    // LEDGER extra space above/below staff for ledger lines
+    const LABEL_H=18;
+    const BLOCK_H=showColors?48:0;
+    const GAP=8;
+    const LEDGER_TOP=16;  // extra space above staff for ledger lines (high notes)
+    const LEDGER_BOT=16;  // extra space below staff for ledger lines (low notes)
+    const LINE_SP=10;     // space between staff lines
+    const STAFF_LINES_H=4*LINE_SP; // 5 lines = 4 gaps
+    const STAFF_TOP=LABEL_H+BLOCK_H+GAP+LEDGER_TOP;
+    const H=STAFF_TOP+STAFF_LINES_H+LEDGER_BOT+10;
 
-    // Vertical zones
-    const LABEL_H=showLabels?20:0;   // name label above block/staff
-    const BLOCK_H=showColors?50:0;   // colour block
-    const GAP=showLabels||showColors?8:0;
-    const STAFF_TOP=LABEL_H+BLOCK_H+GAP;
-    const LINE_SP=9;
-    const STAFF_H=4*LINE_SP+44;
-    const H=STAFF_TOP+STAFF_H;
+    const CLEF_W=54;
+    const SLOT=Math.max(65,Math.min(110,Math.floor((divEl.parentElement?.offsetWidth||700)/Math.max(notas.length,1))));
+    const W=Math.max(360,notas.length*SLOT+CLEF_W+40);
 
     const renderer=new Renderer(divEl,Renderer.Backends.SVG);
     renderer.resize(W,H);
@@ -675,7 +805,7 @@ function renderVexFlowStaff(compasData,compasStr,divEl){
     stave.setContext(ctx).draw();
 
     const [numStr,denStr]=compasStr.split('/');
-    const totalQuarters=parseInt(numStr)*(4/parseInt(denStr));
+    const totalQ=parseInt(numStr)*(4/parseInt(denStr));
 
     const vexNotes=notas.map(nota=>{
       if(nota.type==='rest'){
@@ -698,7 +828,7 @@ function renderVexFlowStaff(compasData,compasStr,divEl){
       return sn;
     });
 
-    const voice=new Voice({num_beats:totalQuarters,beat_value:4});
+    const voice=new Voice({num_beats:totalQ,beat_value:4});
     voice.setMode(Voice.Mode.SOFT);
     voice.addTickables(vexNotes);
     new Formatter().joinVoices([voice]).format([voice],W-CLEF_W-40);
@@ -707,74 +837,62 @@ function renderVexFlowStaff(compasData,compasStr,divEl){
     const svgEl=divEl.querySelector('svg');
     if(!svgEl)return;
 
-    // Get note X positions after VexFlow formats them
+    // Get X positions
     const xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
-    // Fallback if any missing
-    const validX=xPos.filter(Boolean);
-    if(validX.length!==notas.length){
-      for(let i=0;i<notas.length;i++) if(!xPos[i]) xPos[i]=CLEF_W+20+(i+0.5)*((W-CLEF_W-30)/notas.length);
-    }
+    for(let i=0;i<notas.length;i++) if(!xPos[i]) xPos[i]=CLEF_W+20+(i+0.5)*((W-CLEF_W-30)/notas.length);
 
-    // Add SVG style for playback highlight animation
+    // SVG highlight style
     const style=document.createElementNS('http://www.w3.org/2000/svg','style');
-    style.textContent='.svn-ring{transition:opacity 0.08s;}.svn-active .svn-ring{opacity:0.2;}';
+    style.textContent='.svn-ring{transition:opacity 0.08s;}.svn-active .svn-ring{opacity:0.18;}';
     svgEl.insertBefore(style,svgEl.firstChild);
 
-    // Draw overlays per note
     notasIdx.forEach(({nota,ni},i)=>{
-      const x=xPos[i]; if(!x)return;
+      const x=xPos[i];if(!x)return;
       const color=nota.type==='note'?(NOTE_COLORS[nota.key]||'#888'):'#aaa';
       const tc=nota.type==='note'?(NOTE_TEXT[nota.key]||'white'):'#555';
       const noteName=nota.type==='note'?NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]:'𝄽';
       const altS=nota.type==='note'?altSym(nota.alt):'';
       const octSuf=nota.type==='note'?(OCTAVAS[nota.oct]?.suffix||''):'';
 
-      // Group with playback ID
       const g=document.createElementNS('http://www.w3.org/2000/svg','g');
       g.setAttribute('id',`svn-${ci}-${ni}`);
       g.setAttribute('class','svn-note');
       svgEl.appendChild(g);
 
-      // Highlight ring (full column, shown on active)
-      const bw=Math.min(SLOT-4,52);
+      // Full-column highlight ring for playback
+      const bw=Math.min(SLOT-4,54);
       const ring=document.createElementNS('http://www.w3.org/2000/svg','rect');
-      ring.setAttribute('x',x-bw/2-2);ring.setAttribute('y',0);
+      ring.setAttribute('x',x-bw/2-2);ring.setAttribute('y','0');
       ring.setAttribute('width',bw+4);ring.setAttribute('height',H);
-      ring.setAttribute('rx','7');ring.setAttribute('fill',color);
+      ring.setAttribute('rx','6');ring.setAttribute('fill',color);
       ring.setAttribute('opacity','0');ring.setAttribute('class','svn-ring');
       g.appendChild(ring);
 
       if(showColors){
-        // Colour block zone
-        const bh=BLOCK_H-4;
-        const by=LABEL_H;
+        // Colour block
+        const bh=BLOCK_H-4,by=LABEL_H;
         const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
         rect.setAttribute('x',x-bw/2);rect.setAttribute('y',by);
         rect.setAttribute('width',bw);rect.setAttribute('height',bh);
         rect.setAttribute('rx','7');rect.setAttribute('fill',color);
         rect.setAttribute('stroke','rgba(0,0,0,0.12)');rect.setAttribute('stroke-width','1.2');
         g.appendChild(rect);
-
-        // Note name inside block
+        // Name in block
         const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
         txt.setAttribute('x',x);txt.setAttribute('y',by+bh/2);
         txt.setAttribute('text-anchor','middle');txt.setAttribute('dominant-baseline','middle');
         txt.setAttribute('font-size','13');txt.setAttribute('font-weight','900');
         txt.setAttribute('font-family','Nunito,sans-serif');txt.setAttribute('fill',tc);
-        txt.textContent=altS+noteName;
-        g.appendChild(txt);
-
-        // Octave in corner
+        txt.textContent=altS+noteName;g.appendChild(txt);
+        // Octave corner
         if(octSuf){
           const ts=document.createElementNS('http://www.w3.org/2000/svg','text');
           ts.setAttribute('x',x+bw/2-3);ts.setAttribute('y',by+bh-3);
           ts.setAttribute('text-anchor','end');ts.setAttribute('font-size','8');
           ts.setAttribute('font-family','Nunito,sans-serif');ts.setAttribute('fill',tc);ts.setAttribute('opacity','0.85');
-          ts.textContent=octSuf;
-          g.appendChild(ts);
+          ts.textContent=octSuf;g.appendChild(ts);
         }
-
-        // Dashed connector block→staff
+        // Connector line block→staff
         if(GAP>2){
           const line=document.createElementNS('http://www.w3.org/2000/svg','line');
           line.setAttribute('x1',x);line.setAttribute('y1',LABEL_H+BLOCK_H);
@@ -783,23 +901,23 @@ function renderVexFlowStaff(compasData,compasStr,divEl){
           line.setAttribute('stroke-dasharray','3,2');line.setAttribute('opacity','0.4');
           g.appendChild(line);
         }
-
-        // Small octave label in LABEL zone (above block)
-        if(showLabels&&octSuf){
+        // Octave label above block in LABEL zone
+        if(octSuf){
           const ol=document.createElementNS('http://www.w3.org/2000/svg','text');
-          ol.setAttribute('x',x);ol.setAttribute('y',LABEL_H-3);
+          ol.setAttribute('x',x);ol.setAttribute('y',LABEL_H-2);
           ol.setAttribute('text-anchor','middle');ol.setAttribute('dominant-baseline','auto');
           ol.setAttribute('font-size','10');ol.setAttribute('font-weight','800');
           ol.setAttribute('font-family','Nunito,sans-serif');ol.setAttribute('fill',color);
-          ol.textContent=octSuf;
-          g.appendChild(ol);
+          ol.textContent=octSuf;g.appendChild(ol);
         }
-      } else if(showLabels&&nota.type==='note'){
-        // Mode 3: label always above staff, outside, large and readable
+      } else if(nota.type==='note'){
+        // Mode 3: label ABOVE staff, always outside, large and readable
+        // Position: just above the staff top (in LEDGER_TOP zone)
+        const labelY=STAFF_TOP-LEDGER_TOP-2;
         const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-        lbl.setAttribute('x',x);lbl.setAttribute('y',STAFF_TOP-5);
+        lbl.setAttribute('x',x);lbl.setAttribute('y',labelY);
         lbl.setAttribute('text-anchor','middle');lbl.setAttribute('dominant-baseline','auto');
-        lbl.setAttribute('font-size','13');lbl.setAttribute('font-weight','900');
+        lbl.setAttribute('font-size','12');lbl.setAttribute('font-weight','900');
         lbl.setAttribute('font-family','Nunito,sans-serif');lbl.setAttribute('fill',color);
         lbl.textContent=altS+noteName+(octSuf?' '+octSuf:'');
         g.appendChild(lbl);
@@ -812,38 +930,52 @@ function renderVexFlowStaff(compasData,compasStr,divEl){
   }
 }
 
-function toggleSound(){
-  state.student.soundOn=!state.student.soundOn;
-  const btn=document.getElementById('sound-toggle');
-  btn.textContent=state.student.soundOn?'🔊 Sonido':'🔇 Mudo';
-  btn.classList.toggle('on',state.student.soundOn);
-}
+// ═══════════════════ FULL SCORE VIEW ═══════════════════
+function openFullScore(){
+  const p=state.student.current;
+  if(!p){showToast('Abre una partitura primero');return;}
+  document.getElementById('fullscore-title').textContent=p.titulo||'Partitura';
+  const content=document.getElementById('fullscore-content');
+  content.innerHTML='';
 
-function playNoteSound(nota){
-  if(!state.student.soundOn||!nota||nota.type==='rest')return;
-  try{
-    const ctx=getAudioCtx();
-    if(ctx.state==='suspended')ctx.resume();
-    let freq=BASE_FREQ[`${nota.key}-${nota.oct}`]||440;
-    if(nota.alt==='sharp')freq*=Math.pow(2,1/12);
-    if(nota.alt==='flat')freq*=Math.pow(2,-1/12);
-    const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-    const val=(nota.dot&&fig.dot_val)?fig.dot_val:fig.val;
-    const dur=val*(60/state.student.bpm/4)*0.88;
-    const osc=ctx.createOscillator(),gain=ctx.createGain(),filter=ctx.createBiquadFilter();
-    const lfo=ctx.createOscillator(),lfoGain=ctx.createGain();
-    osc.type='sawtooth';osc.frequency.setValueAtTime(freq,ctx.currentTime);
-    lfo.frequency.value=5.5;lfoGain.gain.value=3;lfo.connect(lfoGain);lfoGain.connect(osc.frequency);lfo.start();
-    filter.type='bandpass';filter.frequency.value=freq*2.5;filter.Q.value=1.2;
-    gain.gain.setValueAtTime(0,ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.32,ctx.currentTime+0.04);
-    gain.gain.setValueAtTime(0.26,ctx.currentTime+dur*0.7);
-    gain.gain.linearRampToValueAtTime(0,ctx.currentTime+dur);
-    osc.connect(filter);filter.connect(gain);gain.connect(ctx.destination);
-    osc.start(ctx.currentTime);osc.stop(ctx.currentTime+dur);lfo.stop(ctx.currentTime+dur);
-  }catch(e){}
-}
+  // Title
+  const titleEl=document.createElement('div');
+  titleEl.style.cssText='text-align:center;margin-bottom:1.5rem;';
+  titleEl.innerHTML=`<h1 style="font-size:1.6rem;font-weight:900;color:#2C2416;font-family:Nunito,sans-serif">${escHtml(p.titulo||'Sin título')}</h1>
+    <p style="color:#7A6E5F;font-size:0.9rem;font-family:Nunito,sans-serif">${INSTRUMENT_NAMES[p.instrument]||'Alto'} · ${p.compas}</p>`;
+  content.appendChild(titleEl);
 
+  // Render all compases 4 per row as colour+staff
+  const compasStr=p.compas||'4/4';
+  const PER_ROW=4;
+  for(let i=0;i<p.compases.length;i+=PER_ROW){
+    const rowDiv=document.createElement('div');
+    rowDiv.style.cssText='display:flex;gap:0;margin-bottom:8px;border:1.5px solid #C8BFA8;border-radius:8px;overflow:hidden;background:white;';
+    for(let j=0;j<PER_ROW&&(i+j)<p.compases.length;j++){
+      const ci=i+j,c=p.compases[ci];
+      const cDiv=document.createElement('div');
+      cDiv.style.cssText='flex:1;min-width:0;border-right:1.5px solid #C8BFA8;';
+      if(j===PER_ROW-1||ci===p.compases.length-1) cDiv.style.borderRight='none';
+      const header=document.createElement('div');
+      header.style.cssText='font-size:0.65rem;color:#7A6E5F;font-family:Space Mono,monospace;padding:2px 6px;border-bottom:1px solid #EDE8DC;display:flex;justify-content:space-between;font-weight:700;';
+      header.innerHTML=`<span>${ci+1}</span><span>${compasStr}</span>`;
+      cDiv.appendChild(header);
+      const staffDiv=document.createElement('div');
+      staffDiv.style.cssText='background:white;padding:2px;';
+      cDiv.appendChild(staffDiv);
+      rowDiv.appendChild(cDiv);
+      // Render colour+staff view
+      renderVexFlowStaff({...c,_ci:ci},compasStr,staffDiv,2);
+    }
+    content.appendChild(rowDiv);
+  }
+
+  document.getElementById('fullscore-overlay').classList.add('open');
+}
+function closeFullScore(){document.getElementById('fullscore-overlay').classList.remove('open');}
+function printFullScore(){window.print();}
+
+// ═══════════════════ PLAYBACK ═══════════════════
 function updateBPM(val){state.student.bpm=parseInt(val);document.getElementById('bpm-display').textContent=val+' BPM';}
 function togglePlayback(){state.student.playing?stopPlayback():startPlayback();}
 
@@ -865,7 +997,8 @@ function startPlayback(){
     if(!state.student.playing||idx>=seq.length){stopPlayback();return;}
     const item=seq[idx];
     state.student.playPos={ci:item.ci,ni:item.ni};
-    highlightNote(item.ci,item.ni);playNoteSound(item.nota);
+    highlightNote(item.ci,item.ni);
+    playNoteSound(item.nota);
     idx++;state.student.playTimer=setTimeout(playNext,item.dur_ms);
   }
   playNext();
@@ -879,7 +1012,6 @@ function stopPlayback(){
 }
 
 function highlightNote(ci,ni){
-  // Clear previous highlights
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
   document.querySelectorAll('.svn-active').forEach(el=>el.classList.remove('svn-active'));
   const mode=state.student.mode;
@@ -887,18 +1019,44 @@ function highlightNote(ci,ni){
     const el=document.getElementById(`vn-${ci}-${ni}`);
     if(el){el.classList.add('active-note');el.scrollIntoView({behavior:'smooth',block:'nearest'});}
   } else {
-    // Modes 2 and 3: highlight SVG group
     const g=document.getElementById(`svn-${ci}-${ni}`);
-    if(g){
-      g.classList.add('svn-active');
-      g.closest('.staff-wrap')?.scrollIntoView({behavior:'smooth',block:'nearest'});
-    }
+    if(g){g.classList.add('svn-active');g.closest('.staff-wrap')?.scrollIntoView({behavior:'smooth',block:'nearest'});}
   }
 }
 
+function toggleSound(){
+  state.student.soundOn=!state.student.soundOn;
+  const btn=document.getElementById('sound-toggle');
+  btn.textContent=state.student.soundOn?'🔊':'🔇';
+  btn.classList.toggle('on',state.student.soundOn);
+}
+
+function playNoteSound(nota){
+  if(!state.student.soundOn||!nota||nota.type==='rest')return;
+  try{
+    const ctx=getAudioCtx();
+    if(ctx.state==='suspended')ctx.resume();
+    const freq=noteFreq(nota.key,nota.oct,nota.alt,state.student.instrument);
+    const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+    const val=(nota.dot&&fig.dot_val)?fig.dot_val:fig.val;
+    const dur=val*(60/state.student.bpm/4)*0.88;
+    const osc=ctx.createOscillator(),gain=ctx.createGain(),filter=ctx.createBiquadFilter();
+    const lfo=ctx.createOscillator(),lfoGain=ctx.createGain();
+    osc.type='sawtooth';osc.frequency.setValueAtTime(freq,ctx.currentTime);
+    lfo.frequency.value=5.5;lfoGain.gain.value=4;lfo.connect(lfoGain);lfoGain.connect(osc.frequency);lfo.start();
+    filter.type='bandpass';filter.frequency.value=freq*2.2;filter.Q.value=1.4;
+    gain.gain.setValueAtTime(0,ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.3,ctx.currentTime+0.04);
+    gain.gain.setValueAtTime(0.24,ctx.currentTime+dur*0.7);
+    gain.gain.linearRampToValueAtTime(0,ctx.currentTime+dur);
+    osc.connect(filter);filter.connect(gain);gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);osc.stop(ctx.currentTime+dur);lfo.stop(ctx.currentTime+dur);
+  }catch(e){}
+}
+
+// ═══════════════════ UTILS ═══════════════════
 function escHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function formatDate(iso){if(!iso)return '';return new Date(iso).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'});}
-
 document.addEventListener('DOMContentLoaded',()=>{renderNotePalette();renderAltButtons();renderFigurePalette();});
 </script>
 </body>
