@@ -126,6 +126,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .vnote-dur{font-size:0.55rem;opacity:0.65;font-family:var(--mono);}
 .vnote-rest{background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;}
 .staff-wrap{background:white;border-radius:var(--radius-sm);padding:6px 4px;margin:4px 6px 8px;overflow-x:auto;border:1px solid var(--border);}
+.layout-bar{display:flex;gap:0.4rem;padding:0.4rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);align-items:center;flex-wrap:wrap;}
+.layout-label{font-size:0.72rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;}
+.layout-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:0.3rem 0.65rem;cursor:pointer;font-family:var(--mono);font-size:0.78rem;font-weight:700;transition:all 0.2s;}
+.layout-btn:hover{border-color:var(--accent);color:var(--text);}
+.layout-btn.active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+.compases-row{display:flex;gap:0;margin-bottom:0.75rem;border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);}
+.compases-row .viewer-compas{margin-bottom:0;border:none;border-radius:0;border-right:2px solid var(--border);box-shadow:none;flex:1;min-width:0;}
+.compases-row .viewer-compas:last-child{border-right:none;}
+.compases-row .viewer-cells{flex-wrap:nowrap;overflow-x:auto;min-height:60px;}
+.compas-row-num{font-size:0.65rem;color:var(--muted);font-family:var(--mono);font-weight:700;padding:0.15rem 0.5rem;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;}
 .practice-bar{padding:0.7rem 1rem;background:var(--surface);border-top:2px solid var(--border);display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;box-shadow:0 -2px 8px rgba(0,0,0,0.07);}
 .bpm-control{display:flex;align-items:center;gap:0.5rem;flex:1;}
 .bpm-control input[type="range"]{flex:1;accent-color:var(--accent);}
@@ -216,6 +226,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <button class="mode-btn" id="mode-btn-2" onclick="setMode(2)">⚡ Paralela</button>
     <button class="mode-btn" id="mode-btn-3" onclick="setMode(3)">🎵 Pentagrama</button>
   </div>
+  <div class="layout-bar">
+    <span class="layout-label">Compases por línea:</span>
+    <button class="layout-btn active" id="lay-btn-1" onclick="setLayout(1)">1</button>
+    <button class="layout-btn" id="lay-btn-2" onclick="setLayout(2)">2</button>
+    <button class="layout-btn" id="lay-btn-4" onclick="setLayout(4)">4</button>
+    <button class="layout-btn" id="lay-btn-8" onclick="setLayout(8)">8</button>
+  </div>
   <div class="legend-bar" id="viewer-legend">
     <span class="legend-item"><span class="legend-dot" style="background:var(--do)"></span>Do</span>
     <span class="legend-item"><span class="legend-dot" style="background:var(--re)"></span>Re</span>
@@ -269,7 +286,7 @@ const VEX_NOTE_MAP={do:'c',re:'d',mi:'e',fa:'f',sol:'g',la:'a',si:'b'};
 let state={
   screen:'home',
   editor:{id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null},
-  student:{current:null,mode:0,bpm:80,instrument:'alto',playing:false,playTimer:null,playPos:null,soundOn:true}
+  student:{current:null,mode:0,layout:1,bpm:80,instrument:'alto',playing:false,playTimer:null,playPos:null,soundOn:true}
 };
 let audioCtx=null;
 function getAudioCtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
@@ -512,10 +529,11 @@ async function loadStudentList(){
 
 async function openPartitura(id){
   const p=await apiGet('/api/partituras/'+id);
-  state.student.current=p;state.student.mode=0;state.student.playing=false;state.student.playPos=null;
+  state.student.current=p;state.student.mode=0;state.student.layout=1;state.student.playing=false;state.student.playPos=null;
   document.getElementById('viewer-title').textContent=p.titulo||'Partitura';
   document.getElementById('bpm-slider').value=state.student.bpm;
   document.getElementById('bpm-display').textContent=state.student.bpm+' BPM';
+  [1,2,4,8].forEach(v=>{const b=document.getElementById('lay-btn-'+v);if(b)b.classList.toggle('active',v===1);});
   setMode(0);goTo('student-view');
 }
 
@@ -526,52 +544,107 @@ function setMode(mode){
   renderViewer();
 }
 
+function setLayout(n){
+  state.student.layout=n;
+  [1,2,4,8].forEach(v=>{
+    const btn=document.getElementById('lay-btn-'+v);
+    if(btn) btn.classList.toggle('active',v===n);
+  });
+  renderViewer();
+}
+
 function renderViewer(){
   const p=state.student.current;
   if(!p||!p.compases||!p.compases.length){document.getElementById('viewer-wrap').innerHTML='<p style="color:var(--muted);padding:2rem;text-align:center">Esta partitura no tiene notas.</p>';return;}
-  const mode=state.student.mode,compas=p.compas||'4/4',numGroups=COMPAS_GROUPS[compas],totalBeats=COMPAS_BEATS[compas],bpg=totalBeats/numGroups;
+  const mode=state.student.mode,layout=state.student.layout||1;
+  const compas=p.compas||'4/4',numGroups=COMPAS_GROUPS[compas],totalBeats=COMPAS_BEATS[compas],bpg=totalBeats/numGroups;
+
+  // Group compases into rows of `layout` each
+  const rows=[];
+  for(let i=0;i<p.compases.length;i+=layout) rows.push(p.compases.slice(i,i+layout).map((c,j)=>({c,ci:i+j})));
+
   let html='';
-  p.compases.forEach((c,ci)=>{
-    html+=`<div class="viewer-compas"><div class="viewer-compas-header"><span>Compás ${ci+1}</span><span>${compas}</span></div>`;
-    if(mode===0||mode===1){
-      html+=`<div class="viewer-cells">`;
-      for(let gi=0;gi<numGroups;gi++){
-        if(gi>0)html+='<div class="viewer-beat-sep"></div>';
-        for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,mode,ci,ni);}
-      }
-      html+='</div>';
-    } else if(mode===2){
-      html+=`<div class="viewer-cells">`;
-      for(let gi=0;gi<numGroups;gi++){
-        if(gi>0)html+='<div class="viewer-beat-sep"></div>';
-        for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,1,ci,ni);}
-      }
-      html+=`</div><div class="staff-wrap" id="staff-${ci}"></div>`;
-    } else if(mode===3){
-      html+=`<div class="staff-wrap" id="staff-${ci}"></div>`;
+  rows.forEach(row=>{
+    if(layout===1){
+      // Single compas per row - original layout
+      const {c,ci}=row[0];
+      html+=renderCompasBlock(c,ci,mode,compas,numGroups,bpg);
+    } else {
+      // Multiple compases in one row
+      html+=`<div class="compases-row">`;
+      row.forEach(({c,ci})=>{
+        html+=`<div class="viewer-compas">`;
+        html+=`<div class="compas-row-num"><span>Compás ${ci+1}</span><span>${compas}</span></div>`;
+        if(mode===0||mode===1){
+          html+=`<div class="viewer-cells">`;
+          for(let gi=0;gi<numGroups;gi++){
+            if(gi>0)html+='<div class="viewer-beat-sep"></div>';
+            for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,mode,ci,ni,true);}
+          }
+          html+='</div>';
+        } else if(mode===2){
+          html+=`<div class="viewer-cells">`;
+          for(let gi=0;gi<numGroups;gi++){
+            if(gi>0)html+='<div class="viewer-beat-sep"></div>';
+            for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,1,ci,ni,true);}
+          }
+          html+=`</div><div class="staff-wrap" id="staff-${ci}" style="margin:2px 3px 4px;"></div>`;
+        } else if(mode===3){
+          html+=`<div class="staff-wrap" id="staff-${ci}" style="margin:2px 3px 4px;"></div>`;
+        }
+        html+=`</div>`;
+      });
+      html+=`</div>`;
     }
-    html+='</div>';
   });
+
   document.getElementById('viewer-wrap').innerHTML=html;
   if(mode===2||mode===3){p.compases.forEach((c,ci)=>{const div=document.getElementById('staff-'+ci);if(div)renderVexFlowStaff(c,p.compas||'4/4',div);});}
 }
 
-function renderViewerNote(nota,mode,ci,ni){
+function renderCompasBlock(c,ci,mode,compas,numGroups,bpg){
+  let html=`<div class="viewer-compas"><div class="viewer-compas-header"><span>Compás ${ci+1}</span><span>${compas}</span></div>`;
+  if(mode===0||mode===1){
+    html+=`<div class="viewer-cells">`;
+    for(let gi=0;gi<numGroups;gi++){
+      if(gi>0)html+='<div class="viewer-beat-sep"></div>';
+      for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,mode,ci,ni,false);}
+    }
+    html+='</div>';
+  } else if(mode===2){
+    html+=`<div class="viewer-cells">`;
+    for(let gi=0;gi<numGroups;gi++){
+      if(gi>0)html+='<div class="viewer-beat-sep"></div>';
+      for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,1,ci,ni,false);}
+    }
+    html+=`</div><div class="staff-wrap" id="staff-${ci}"></div>`;
+  } else if(mode===3){
+    html+=`<div class="staff-wrap" id="staff-${ci}"></div>`;
+  }
+  html+='</div>';
+  return html;
+}
+
+function renderViewerNote(nota,mode,ci,ni,compact=false){
   if(!nota||nota==='skip')return '';
   const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-  const dot=nota.dot&&fig.dot_val,val=dot?fig.dot_val:fig.val,size=Math.min(38+val*4,84);
+  const dot=nota.dot&&fig.dot_val,val=dot?fig.dot_val:fig.val;
+  const maxSize=compact?52:84;
+  const baseSize=compact?28:38;
+  const size=Math.min(baseSize+val*3,maxSize);
+  const fontSize=size>44?'0.82':'0.65';
   const playActive=state.student.playing&&state.student.playPos&&state.student.playPos.ci===ci&&state.student.playPos.ni===ni;
   if(nota.type==='rest'){
     return `<div class="vnote vnote-rest${playActive?' active-note':''}" style="width:${size}px;height:${size}px;" id="vn-${ci}-${ni}">
-      ${mode===1?'<span style="font-size:1.1rem">𝄽</span>':''}<span class="vnote-dur">${fig.glyph}${dot?'·':''}</span></div>`;
+      ${mode===1?'<span style="font-size:0.95rem">𝄽</span>':''}<span class="vnote-dur">${fig.glyph}${dot?'·':''}</span></div>`;
   }
   const color=NOTE_COLORS[nota.key]||'#888',tc=NOTE_TEXT[nota.key]||'white';
   const noteName=NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)],octSuf=OCTAVAS[nota.oct]?.suffix||'';
   return `<div class="vnote${playActive?' active-note':''}" style="width:${size}px;height:${size}px;background:${color};" id="vn-${ci}-${ni}">
-    ${mode===1?`<span class="vnote-alt" style="color:${tc}">${altSym(nota.alt)}</span>`:''}
-    ${mode===1?`<span class="vnote-name" style="font-size:${size>52?'0.88':'0.72'}rem;color:${tc}">${noteName}</span>`:''}
-    ${mode===1?`<span class="vnote-dur" style="color:${tc}">${fig.glyph}${dot?'·':''}${octSuf}</span>`:''}
-    ${nota.oct>0&&mode===0?`<span style="position:absolute;bottom:3px;right:4px;font-size:0.52rem;color:${tc};opacity:0.8">${octSuf}</span>`:''}
+    ${mode===1?`<span class="vnote-alt" style="color:${tc};font-size:0.65rem">${altSym(nota.alt)}</span>`:''}
+    ${mode===1?`<span class="vnote-name" style="font-size:${fontSize}rem;color:${tc}">${noteName}</span>`:''}
+    ${mode===1?`<span class="vnote-dur" style="color:${tc};font-size:0.5rem">${fig.glyph}${dot?'·':''}${octSuf}</span>`:''}
+    ${nota.oct>0&&mode===0?`<span style="position:absolute;bottom:2px;right:3px;font-size:0.48rem;color:${tc};opacity:0.8">${octSuf}</span>`:''}
   </div>`;
 }
 
