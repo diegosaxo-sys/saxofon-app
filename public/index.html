@@ -768,176 +768,188 @@ function renderViewerNote(nota,mode,ci,ni,compact=false){
 function renderVexFlowStaff(compasData,compasStr,divEl,mode){
   divEl.innerHTML='';
   const showColors=(mode===2);
-  const showLabels=true; // always show labels above staff
-  try{
-    const {Renderer,Stave,StaveNote,Voice,Formatter,Accidental,Dot}=Vex.Flow;
-    const notasIdx=[];
-    (compasData.notas||[]).forEach((nota,ni)=>{if(nota&&nota!=='skip')notasIdx.push({nota,ni});});
-    if(!notasIdx.length)return;
-    const notas=notasIdx.map(x=>x.nota);
-    const ci=compasData._ci!==undefined?compasData._ci:0;
 
-    // ── Sizes ──
-    // LABEL: name above block or above staff
-    // BLOCK: colour block (mode 2 only)
-    // GAP: space between block and staff
-    // LEDGER extra space above/below staff for ledger lines
-    const LABEL_H=20;
-    const BLOCK_H=showColors?52:0;
-    const GAP=10;
-    const LEDGER_TOP=24;  // generous space above staff for high notes + ledger lines
-    const LEDGER_BOT=20;  // generous space below staff for low notes + ledger lines
-    const LINE_SP=10;
-    const STAFF_LINES_H=4*LINE_SP;
-    const STAFF_TOP=LABEL_H+BLOCK_H+GAP+LEDGER_TOP;
-    const H=STAFF_TOP+STAFF_LINES_H+LEDGER_BOT+16;
+  const notasIdx=[];
+  (compasData.notas||[]).forEach((nota,ni)=>{if(nota&&nota!=='skip')notasIdx.push({nota,ni});});
+  if(!notasIdx.length)return;
+  const ci=compasData._ci!==undefined?compasData._ci:0;
+  const notas=notasIdx.map(x=>x.nota);
 
-    const CLEF_W=54;
-    const SLOT=Math.max(65,Math.min(110,Math.floor((divEl.parentElement?.offsetWidth||700)/Math.max(notas.length,1))));
-    const W=Math.max(360,notas.length*SLOT+CLEF_W+40);
+  // ── Layout constants (all in SVG user units) ──
+  const LABEL_H = 18;                    // note name label zone
+  const BLOCK_H = showColors ? 50 : 0;  // colour block zone
+  const GAP     = showColors ? 8 : 0;
+  const LS      = 8;                     // line spacing
+  const STAFF_H = 4*LS;                  // 5 lines
+  const PAD_T   = 28;                    // padding above staff (ledger lines high notes)
+  const PAD_B   = 28;                    // padding below staff (ledger lines low notes)
+  const CLEF_W  = 48;
+  const SIG_W   = 24;
+  const SLOT    = 58;                    // width per note
+  const W       = Math.max(320, CLEF_W+SIG_W+notas.length*SLOT+16);
+  const STAFF_Y = LABEL_H+BLOCK_H+GAP+PAD_T; // Y of top staff line
+  const H       = STAFF_Y+STAFF_H+PAD_B;
 
-    const renderer=new Renderer(divEl,Renderer.Backends.SVG);
-    renderer.resize(W,H);
-    const ctx=renderer.getContext();
+  // Note head Y positions on staff (steps from top line: 0=top line, each step=LS/2)
+  // Treble clef: top line = F5, then E5,D5,C5,B4 | spaces G5,A5 above, A4,G4,F4,E4,D4,C4 below
+  // Our octaves: oct0=grave(C4 range), oct1=medio(C5 range), oct2=agudo(C6 range)
+  // Staff step from top line (positive=down): F5=0,E5=1,D5=2,C5=3,B4=4,A4=5,G4=6,F4=7,E4=8,D4=9,C4=10
+  const STAFF_STEPS={
+    'do-0':10,'re-0':9,'mi-0':8,'fa-0':7,'sol-0':6,'la-0':5,'si-0':4,
+    'do-1':3, 're-1':2,'mi-1':1,'fa-1':0,'sol-1':-1,'la-1':-2,'si-1':-3,
+    'do-2':-4,'re-2':-5,'mi-2':-6,'fa-2':-7,'sol-2':-8,
+  };
 
-    const stave=new Stave(10,STAFF_TOP,W-20);
-    stave.addClef('treble').addTimeSignature(compasStr);
-    stave.setContext(ctx).draw();
+  function stepToY(step){ return STAFF_Y + step*(LS/2); }
 
-    const [numStr,denStr]=compasStr.split('/');
-    const totalQ=parseInt(numStr)*(4/parseInt(denStr));
+  // Build SVG string
+  let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;overflow:visible;">`;
 
-    const vexNotes=notas.map(nota=>{
-      if(nota.type==='rest'){
-        const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-        const sn=new StaveNote({keys:['b/4'],duration:fig.vex+'r'});
-        if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});
-        return sn;
-      }
-      const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-      const vexKey=VEX_NOTE_MAP[nota.key]||'c';
-      const oct=(nota.oct||0)+4;
-      const accStr=nota.alt==='sharp'?'#':nota.alt==='flat'?'b':'';
-      const keyStr=`${vexKey}${accStr}/${oct}`;
-      const color=NOTE_COLORS[nota.key]||'#000';
-      const sn=new StaveNote({keys:[keyStr],duration:fig.vex,stem_direction:oct>=5?-1:1});
-      sn.setStyle({fillStyle:color,strokeStyle:color});
-      if(nota.alt==='sharp')sn.addModifier(new Accidental('#'));
-      else if(nota.alt==='flat')sn.addModifier(new Accidental('b'));
-      if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});
-      return sn;
-    });
+  // White background
+  s+=`<rect x="0" y="0" width="${W}" height="${H}" fill="white"/>`;
 
-    const voice=new Voice({num_beats:totalQ,beat_value:4});
-    voice.setMode(Voice.Mode.SOFT);
-    voice.addTickables(vexNotes);
-    new Formatter().joinVoices([voice]).format([voice],W-CLEF_W-40);
-    voice.draw(ctx,stave);
-
-    const svgEl=divEl.querySelector('svg');
-    if(!svgEl)return;
-
-    // Set viewBox so SVG scales responsively without clipping
-    svgEl.setAttribute('viewBox',`0 0 ${W} ${H}`);
-    svgEl.setAttribute('preserveAspectRatio','xMinYMin meet');
-    svgEl.style.width='100%';
-    svgEl.style.height='auto';
-    svgEl.style.display='block';
-    svgEl.style.overflow='visible';
-    // Make sure container is tall enough
-    divEl.style.minHeight=`${H}px`;
-
-    // Get X positions
-    const xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
-    for(let i=0;i<notas.length;i++) if(!xPos[i]) xPos[i]=CLEF_W+20+(i+0.5)*((W-CLEF_W-30)/notas.length);
-
-    // SVG highlight style
-    const style=document.createElementNS('http://www.w3.org/2000/svg','style');
-    style.textContent='.svn-ring{transition:opacity 0.08s;}.svn-active .svn-ring{opacity:0.18;}';
-    svgEl.insertBefore(style,svgEl.firstChild);
-
-    notasIdx.forEach(({nota,ni},i)=>{
-      const x=xPos[i];if(!x)return;
-      const color=nota.type==='note'?(NOTE_COLORS[nota.key]||'#888'):'#aaa';
-      const tc=nota.type==='note'?(NOTE_TEXT[nota.key]||'white'):'#555';
-      const noteName=nota.type==='note'?NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]:'𝄽';
-      const altS=nota.type==='note'?altSym(nota.alt):'';
-      const octSuf=nota.type==='note'?(OCTAVAS[nota.oct]?.suffix||''):'';
-
-      const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-      g.setAttribute('id',`svn-${ci}-${ni}`);
-      g.setAttribute('class','svn-note');
-      svgEl.appendChild(g);
-
-      // Full-column highlight ring for playback
-      const bw=Math.min(SLOT-4,54);
-      const ring=document.createElementNS('http://www.w3.org/2000/svg','rect');
-      ring.setAttribute('x',x-bw/2-2);ring.setAttribute('y','0');
-      ring.setAttribute('width',bw+4);ring.setAttribute('height',H);
-      ring.setAttribute('rx','6');ring.setAttribute('fill',color);
-      ring.setAttribute('opacity','0');ring.setAttribute('class','svn-ring');
-      g.appendChild(ring);
-
-      if(showColors){
-        // Colour block
-        const bh=BLOCK_H-4,by=LABEL_H;
-        const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
-        rect.setAttribute('x',x-bw/2);rect.setAttribute('y',by);
-        rect.setAttribute('width',bw);rect.setAttribute('height',bh);
-        rect.setAttribute('rx','7');rect.setAttribute('fill',color);
-        rect.setAttribute('stroke','rgba(0,0,0,0.12)');rect.setAttribute('stroke-width','1.2');
-        g.appendChild(rect);
-        // Name in block
-        const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
-        txt.setAttribute('x',x);txt.setAttribute('y',by+bh/2);
-        txt.setAttribute('text-anchor','middle');txt.setAttribute('dominant-baseline','middle');
-        txt.setAttribute('font-size','13');txt.setAttribute('font-weight','900');
-        txt.setAttribute('font-family','Nunito,sans-serif');txt.setAttribute('fill',tc);
-        txt.textContent=altS+noteName;g.appendChild(txt);
-        // Octave corner
-        if(octSuf){
-          const ts=document.createElementNS('http://www.w3.org/2000/svg','text');
-          ts.setAttribute('x',x+bw/2-3);ts.setAttribute('y',by+bh-3);
-          ts.setAttribute('text-anchor','end');ts.setAttribute('font-size','8');
-          ts.setAttribute('font-family','Nunito,sans-serif');ts.setAttribute('fill',tc);ts.setAttribute('opacity','0.85');
-          ts.textContent=octSuf;g.appendChild(ts);
-        }
-        // Connector line block→staff
-        if(GAP>2){
-          const line=document.createElementNS('http://www.w3.org/2000/svg','line');
-          line.setAttribute('x1',x);line.setAttribute('y1',LABEL_H+BLOCK_H);
-          line.setAttribute('x2',x);line.setAttribute('y2',STAFF_TOP);
-          line.setAttribute('stroke',color);line.setAttribute('stroke-width','1.5');
-          line.setAttribute('stroke-dasharray','3,2');line.setAttribute('opacity','0.4');
-          g.appendChild(line);
-        }
-        // Octave label above block in LABEL zone
-        if(octSuf){
-          const ol=document.createElementNS('http://www.w3.org/2000/svg','text');
-          ol.setAttribute('x',x);ol.setAttribute('y',LABEL_H-2);
-          ol.setAttribute('text-anchor','middle');ol.setAttribute('dominant-baseline','auto');
-          ol.setAttribute('font-size','10');ol.setAttribute('font-weight','800');
-          ol.setAttribute('font-family','Nunito,sans-serif');ol.setAttribute('fill',color);
-          ol.textContent=octSuf;g.appendChild(ol);
-        }
-      } else if(nota.type==='note'){
-        // Mode 3: label ABOVE staff, always outside, large and readable
-        // Position: just above the staff top (in LEDGER_TOP zone)
-        const labelY=STAFF_TOP-LEDGER_TOP-2;
-        const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-        lbl.setAttribute('x',x);lbl.setAttribute('y',labelY);
-        lbl.setAttribute('text-anchor','middle');lbl.setAttribute('dominant-baseline','auto');
-        lbl.setAttribute('font-size','12');lbl.setAttribute('font-weight','900');
-        lbl.setAttribute('font-family','Nunito,sans-serif');lbl.setAttribute('fill',color);
-        lbl.textContent=altS+noteName+(octSuf?' '+octSuf:'');
-        g.appendChild(lbl);
-      }
-    });
-
-  }catch(err){
-    divEl.innerHTML='<p style="color:#aaa;font-size:0.75rem;padding:8px">Error al renderizar pentagrama</p>';
-    console.error('VexFlow:',err);
+  // ── 5 staff lines ──
+  for(let l=0;l<5;l++){
+    const y=STAFF_Y+l*LS;
+    s+=`<line x1="8" y1="${y}" x2="${W-6}" y2="${y}" stroke="#333" stroke-width="0.9"/>`;
   }
+
+  // ── Bar line at end ──
+  s+=`<line x1="${W-6}" y1="${STAFF_Y}" x2="${W-6}" y2="${STAFF_Y+STAFF_H}" stroke="#333" stroke-width="1.5"/>`;
+
+  // ── Treble clef (simplified path) ──
+  // Use a text glyph — reliable cross-browser
+  s+=`<text x="10" y="${STAFF_Y+STAFF_H+6}" font-size="42" font-family="serif" fill="#333" dominant-baseline="auto">𝄞</text>`;
+
+  // ── Time signature ──
+  const [tNum,tDen]=compasStr.split('/');
+  const sigX=CLEF_W+4;
+  s+=`<text x="${sigX}" y="${STAFF_Y+LS*1.5}" font-size="13" font-weight="bold" font-family="serif" fill="#333" text-anchor="middle" dominant-baseline="middle">${tNum}</text>`;
+  s+=`<text x="${sigX}" y="${STAFF_Y+LS*3}" font-size="13" font-weight="bold" font-family="serif" fill="#333" text-anchor="middle" dominant-baseline="middle">${tDen}</text>`;
+
+  // ── Notes ──
+  const noteStartX=CLEF_W+SIG_W+8;
+
+  // First pass: build overlay groups (for playback highlighting)
+  const overlayGroups=[];
+
+  notasIdx.forEach(({nota,ni},i)=>{
+    const x=noteStartX+i*SLOT+SLOT/2;
+    const color=nota.type==='note'?(NOTE_COLORS[nota.key]||'#333'):'#777';
+    const tc=nota.type==='note'?(NOTE_TEXT[nota.key]||'white'):'#444';
+    const noteName=nota.type==='note'?NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]:'𝄽';
+    const altS=nota.type==='note'?altSym(nota.alt):'';
+    const octSuf=nota.type==='note'?(OCTAVAS[nota.oct]?.suffix||''):'';
+    const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+    const dot=nota.dot&&fig.dot_val;
+
+    let g=`<g id="svn-${ci}-${ni}" class="svn-note">`;
+
+    // Highlight column (shown on playback via .svn-active)
+    g+=`<rect class="svn-ring" x="${x-24}" y="0" width="48" height="${H}" rx="6" fill="${color}" opacity="0"/>`;
+
+    // ── COLOUR BLOCK (mode 2) ──
+    if(showColors){
+      const by=LABEL_H, bh=BLOCK_H-4, bw=SLOT-6;
+      g+=`<rect x="${x-bw/2}" y="${by}" width="${bw}" height="${bh}" rx="7" fill="${color}" stroke="rgba(0,0,0,0.12)" stroke-width="1.2"/>`;
+      g+=`<text x="${x}" y="${by+bh/2}" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="900" font-family="Nunito,sans-serif" fill="${tc}">${altS}${noteName}</text>`;
+      if(octSuf) g+=`<text x="${x+bw/2-4}" y="${by+bh-3}" text-anchor="end" font-size="8" font-family="Nunito,sans-serif" fill="${tc}" opacity="0.85">${octSuf}</text>`;
+      // Connector dashed line block→staff
+      g+=`<line x1="${x}" y1="${LABEL_H+BLOCK_H}" x2="${x}" y2="${STAFF_Y}" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,2" opacity="0.4"/>`;
+      // Octave above block
+      if(octSuf) g+=`<text x="${x}" y="${LABEL_H-3}" text-anchor="middle" dominant-baseline="auto" font-size="10" font-weight="800" font-family="Nunito,sans-serif" fill="${color}">${octSuf}</text>`;
+    }
+
+    // ── NOTE NAME LABEL (always above staff, outside) ──
+    if(nota.type==='note'){
+      const labelY=showColors?(LABEL_H-3):(STAFF_Y-PAD_T+2);
+      g+=`<text x="${x}" y="${labelY}" text-anchor="middle" dominant-baseline="auto" font-size="${showColors?'10':'13'}" font-weight="900" font-family="Nunito,sans-serif" fill="${showColors?color:color}">${showColors?octSuf:(altS+noteName+(octSuf?' '+octSuf:''))}</text>`;
+    }
+
+    // ── REST ──
+    if(nota.type==='rest'){
+      const ry=stepToY(2);
+      g+=`<text x="${x}" y="${ry}" text-anchor="middle" dominant-baseline="middle" font-size="16" font-family="serif" fill="#555">𝄼</text>`;
+      if(dot) g+=`<circle cx="${x+12}" cy="${ry-2}" r="2" fill="#555"/>`;
+    } else {
+      // ── NOTE HEAD ──
+      const stepKey=`${nota.key}-${nota.oct}`;
+      const step=STAFF_STEPS[stepKey]??2;
+      const ny=stepToY(step);
+      const stemUp=step>=2; // stem goes up when note is below middle line
+
+      // Ledger lines (above staff: step<0, below staff: step>8)
+      if(step<0){
+        for(let ls=Math.ceil(step/2)*2;ls<0;ls+=2){
+          const ly=stepToY(ls);
+          g+=`<line x1="${x-10}" y1="${ly}" x2="${x+10}" y2="${ly}" stroke="${color}" stroke-width="1.2"/>`;
+        }
+      }
+      if(step>8){
+        for(let ls=10;ls<=step;ls+=2){
+          const ly=stepToY(ls);
+          g+=`<line x1="${x-10}" y1="${ly}" x2="${x+10}" y2="${ly}" stroke="${color}" stroke-width="1.2"/>`;
+        }
+      }
+
+      // Note head
+      const isFilled=fig.id!=='redonda'&&fig.id!=='blanca';
+      if(fig.id==='redonda'){
+        g+=`<ellipse cx="${x}" cy="${ny}" rx="7" ry="5" fill="${color}" stroke="${color}" stroke-width="1"/>`;
+        // Open hole for redonda
+        g+=`<ellipse cx="${x}" cy="${ny}" rx="4" ry="2.5" fill="white"/>`;
+      } else if(fig.id==='blanca'){
+        g+=`<ellipse cx="${x}" cy="${ny}" rx="7" ry="5" fill="white" stroke="${color}" stroke-width="1.8"/>`;
+      } else {
+        g+=`<ellipse cx="${x}" cy="${ny}" rx="6.5" ry="4.5" fill="${color}" stroke="${color}" stroke-width="1"/>`;
+      }
+
+      // Accidental
+      if(nota.alt==='sharp') g+=`<text x="${x-10}" y="${ny+4}" font-size="13" font-family="serif" fill="${color}" text-anchor="middle">♯</text>`;
+      if(nota.alt==='flat')  g+=`<text x="${x-10}" y="${ny+5}" font-size="14" font-family="serif" fill="${color}" text-anchor="middle">♭</text>`;
+
+      // Dot
+      if(dot){
+        const dotY=step%2===0?ny-LS/2:ny;
+        g+=`<circle cx="${x+10}" cy="${dotY}" r="2.2" fill="${color}"/>`;
+      }
+
+      // Stem
+      if(fig.id!=='redonda'){
+        if(stemUp){
+          const stemX=x+6, stemTop=ny-28, stemBot=ny;
+          g+=`<line x1="${stemX}" y1="${stemTop}" x2="${stemX}" y2="${stemBot}" stroke="${color}" stroke-width="1.5"/>`;
+          // Flag/beam
+          if(fig.id==='corchea') g+=`<path d="M${stemX},${stemTop} Q${stemX+12},${stemTop+8} ${stemX+8},${stemTop+18}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+          if(fig.id==='semicorchea'){
+            g+=`<path d="M${stemX},${stemTop} Q${stemX+12},${stemTop+8} ${stemX+8},${stemTop+18}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+            g+=`<path d="M${stemX},${stemTop+8} Q${stemX+12},${stemTop+16} ${stemX+8},${stemTop+26}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+          }
+        } else {
+          const stemX=x-6, stemTop=ny, stemBot=ny+28;
+          g+=`<line x1="${stemX}" y1="${stemTop}" x2="${stemX}" y2="${stemBot}" stroke="${color}" stroke-width="1.5"/>`;
+          if(fig.id==='corchea') g+=`<path d="M${stemX},${stemBot} Q${stemX+12},${stemBot-8} ${stemX+8},${stemBot-18}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+          if(fig.id==='semicorchea'){
+            g+=`<path d="M${stemX},${stemBot} Q${stemX+12},${stemBot-8} ${stemX+8},${stemBot-18}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+            g+=`<path d="M${stemX},${stemBot-8} Q${stemX+12},${stemBot-16} ${stemX+8},${stemBot-26}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+          }
+        }
+      }
+    }
+
+    g+=`</g>`;
+    overlayGroups.push(g);
+  });
+
+  s+=overlayGroups.join('');
+  s+=`</svg>`;
+
+  divEl.innerHTML=s;
+
+  // Add CSS for playback highlight
+  const styleEl=document.createElement('style');
+  styleEl.textContent=`.svn-ring{transition:opacity 0.08s;}.svn-active .svn-ring{opacity:0.18;}`;
+  divEl.appendChild(styleEl);
 }
 
 // ═══════════════════ FULL SCORE VIEW ═══════════════════
