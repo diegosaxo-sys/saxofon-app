@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>SaxoApp — Partituras de Saxofón</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;900&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --do: #E53935; --re: #F4511E; --mi: #FFB300; --fa: #43A047;
+    --sol: #1E88E5; --la: #8E24AA; --si: #EC407A;
+    --bg: #0f0f14; --surface: #1a1a24; --surface2: #22222f;
+    --border: #2e2e40; --text: #e8e8f0; --muted: #7a7a9a;
+    --accent: #7c6bff; --accent2: #ff6b9d;
+    --radius: 12px; --radius-sm: 8px;
+    --font: 'Nunito', sans-serif; --mono: 'Space Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overscroll-behavior: none;
+  }
+
+  .screen { display: none; min-height: 100vh; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  #screen-home {
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    padding: 2rem;
+    background: radial-gradient(ellipse at 30% 20%, #1a0f2e 0%, var(--bg) 60%),
+                radial-gradient(ellipse at 70% 80%, #0f1a2e 0%, transparent 60%);
+  }
+
+  .home-logo { text-align: center; }
+  .home-logo .sax-icon { font-size: 5rem; display: block; margin-bottom: 0.5rem; filter: drop-shadow(0 0 20px rgba(124,107,255,0.5)); }
+  .home-logo h1 { font-size: 2.8rem; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .home-logo p { color: var(--muted); margin-top: 0.5rem; font-size: 1.05rem; }
+
+  .home-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; width: 100%; max-width: 500px; }
+  @media (max-width: 420px) { .home-cards { grid-template-columns: 1fr; } }
+
+  .home-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 2rem 1.5rem; text-align: center; cursor: pointer; transition: all 0.25s; user-select: none; }
+  .home-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 12px 30px rgba(124,107,255,0.15); }
+  .home-card:active { transform: translateY(0); }
+  .home-card .icon { font-size: 2.5rem; display: block; margin-bottom: 0.75rem; }
+  .home-card h2 { font-size: 1.2rem; font-weight: 700; }
+  .home-card p { color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
+  .home-card.teacher { border-color: rgba(124,107,255,0.3); }
+  .home-card.student { border-color: rgba(255,107,157,0.3); }
+  .home-card.teacher:hover { border-color: var(--accent); box-shadow: 0 12px 30px rgba(124,107,255,0.2); }
+  .home-card.student:hover { border-color: var(--accent2); box-shadow: 0 12px 30px rgba(255,107,157,0.2); }
+
+  .topbar { display: flex; align-items: center; gap: 0.75rem; padding: 0.9rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+  .topbar-back { background: none; border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 0.4rem 0.75rem; cursor: pointer; font-family: var(--font); font-size: 0.9rem; display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s; }
+  .topbar-back:hover { border-color: var(--accent); color: var(--accent); }
+  .topbar h2 { font-size: 1.05rem; font-weight: 700; flex: 1; }
+  .topbar-action { background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; color: white; border-radius: var(--radius-sm); padding: 0.5rem 1rem; cursor: pointer; font-family: var(--font); font-size: 0.9rem; font-weight: 600; transition: opacity 0.2s; }
+  .topbar-action:hover { opacity: 0.85; }
+  .topbar-action:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  #screen-teacher-list { background: var(--bg); }
+  .list-body { padding: 1rem; flex: 1; overflow-y: auto; }
+  .list-empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }
+  .list-empty .icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
+
+  .partitura-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 1rem; cursor: pointer; transition: all 0.2s; }
+  .partitura-card:hover { border-color: var(--accent); transform: translateX(3px); }
+  .partitura-card-info { flex: 1; }
+  .partitura-card-info h3 { font-size: 1rem; font-weight: 700; }
+  .partitura-card-info p { color: var(--muted); font-size: 0.82rem; margin-top: 0.2rem; }
+  .partitura-card-badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 0.25rem 0.6rem; font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
+
+  .fab { position: fixed; bottom: 1.5rem; right: 1.5rem; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; border: none; border-radius: 50%; width: 56px; height: 56px; font-size: 1.8rem; cursor: pointer; box-shadow: 0 4px 20px rgba(124,107,255,0.4); transition: transform 0.2s, box-shadow 0.2s; display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .fab:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(124,107,255,0.5); }
+
+  #screen-teacher-editor { background: var(--bg); }
+
+  .editor-config { display: flex; gap: 0.5rem; padding: 0.75rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap; align-items: center; }
+  .editor-config input[type="text"] { flex: 1; min-width: 120px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; font-family: var(--font); font-size: 0.95rem; outline: none; }
+  .editor-config input[type="text"]:focus { border-color: var(--accent); }
+  .editor-config select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; font-family: var(--font); font-size: 0.9rem; outline: none; cursor: pointer; }
+
+  .note-palette { padding: 0.6rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .palette-section { display: flex; gap: 0.35rem; align-items: center; flex-wrap: nowrap; padding-bottom: 0.3rem; }
+  .palette-label { font-size: 0.72rem; color: var(--muted); white-space: nowrap; min-width: 40px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .note-btn { border: 2px solid transparent; border-radius: 8px; padding: 0.35rem 0.55rem; cursor: pointer; font-size: 0.78rem; font-weight: 700; font-family: var(--mono); transition: all 0.15s; white-space: nowrap; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 36px; }
+  .note-btn .note-name { font-size: 0.75rem; font-weight: 700; }
+  .note-btn:hover { opacity: 0.85; transform: translateY(-1px); }
+  .note-btn.selected { border-color: white; box-shadow: 0 0 12px rgba(255,255,255,0.3); }
+
+  .rest-btn { background: var(--surface2); border: 2px solid var(--border); color: var(--muted); border-radius: 8px; padding: 0.35rem 0.55rem; cursor: pointer; font-size: 0.78rem; font-weight: 700; font-family: var(--mono); transition: all 0.15s; white-space: nowrap; }
+  .rest-btn:hover { border-color: var(--accent); }
+  .rest-btn.selected { border-color: var(--accent); color: var(--accent); }
+
+  .figure-palette { padding: 0.6rem 1rem; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+  .figure-label { font-size: 0.72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 0.25rem; }
+  .fig-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 0.3rem 0.6rem; cursor: pointer; font-family: var(--mono); font-size: 0.82rem; transition: all 0.15s; display: flex; align-items: center; gap: 0.3rem; }
+  .fig-btn:hover { border-color: var(--accent); }
+  .fig-btn.selected { background: var(--accent); border-color: var(--accent); color: white; }
+  .fig-glyph { font-size: 1.1rem; }
+
+  .editor-timeline-wrap { flex: 1; overflow-y: auto; padding: 1rem; }
+  .compas-row { display: flex; align-items: stretch; gap: 0.5rem; margin-bottom: 0.6rem; }
+  .compas-num { font-size: 0.7rem; color: var(--muted); width: 22px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); flex-shrink: 0; }
+  .compas-cells { display: flex; gap: 4px; flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px; min-height: 64px; align-items: center; }
+  .beat-group { display: flex; gap: 3px; align-items: center; flex: 1; justify-content: center; padding: 0 2px; border-right: 1px dashed var(--border); min-height: 52px; }
+  .beat-group:last-child { border-right: none; }
+
+  .note-cell { border-radius: 6px; cursor: pointer; transition: all 0.15s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; position: relative; flex-shrink: 0; }
+  .note-cell:hover { filter: brightness(1.2); transform: scale(1.05); }
+  .note-cell .cell-label { font-size: 0.62rem; font-weight: 700; font-family: var(--mono); text-align: center; color: rgba(0,0,0,0.75); line-height: 1; pointer-events: none; }
+  .note-cell .cell-dur { font-size: 0.55rem; color: rgba(0,0,0,0.55); pointer-events: none; }
+  .note-cell.rest-cell { background: var(--surface2); border: 1px dashed var(--border); color: var(--muted); }
+  .note-cell.empty-slot { background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.08); cursor: pointer; }
+  .note-cell.empty-slot:hover { background: rgba(124,107,255,0.1); border-color: var(--accent); }
+
+  .compas-del { background: none; border: 1px solid transparent; color: var(--muted); cursor: pointer; border-radius: 6px; padding: 0 0.3rem; font-size: 0.85rem; align-self: center; transition: all 0.15s; flex-shrink: 0; }
+  .compas-del:hover { border-color: #e53935; color: #e53935; }
+
+  .add-compas-btn { width: 100%; background: var(--surface); border: 1px dashed var(--border); color: var(--muted); border-radius: var(--radius); padding: 0.85rem; cursor: pointer; font-family: var(--font); font-size: 0.95rem; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+  .add-compas-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  #screen-student-list { background: var(--bg); }
+
+  .mode-selector { padding: 0.75rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .mode-btn { flex: 1; min-width: 120px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: var(--radius-sm); padding: 0.5rem 0.5rem; cursor: pointer; font-family: var(--font); font-size: 0.78rem; font-weight: 600; text-align: center; transition: all 0.2s; }
+  .mode-btn:hover { border-color: var(--accent); color: var(--text); }
+  .mode-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+  #screen-student-view { background: var(--bg); }
+  .viewer-wrap { flex: 1; overflow-y: auto; padding: 1rem; }
+
+  .viewer-compas { margin-bottom: 0.75rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .viewer-compas-header { padding: 0.3rem 0.75rem; font-size: 0.7rem; color: var(--muted); font-family: var(--mono); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+  .viewer-cells { display: flex; padding: 8px; gap: 5px; flex-wrap: wrap; align-items: center; min-height: 70px; }
+  .viewer-beat-sep { width: 1px; height: 40px; background: var(--border); flex-shrink: 0; align-self: center; }
+
+  .vnote { border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: default; position: relative; transition: transform 0.1s; }
+  .vnote.active-note { box-shadow: 0 0 0 3px white, 0 0 20px rgba(255,255,255,0.4); transform: scale(1.1); }
+  .vnote-name { font-weight: 800; line-height: 1; font-family: var(--font); }
+  .vnote-dur { font-size: 0.55rem; opacity: 0.7; font-family: var(--mono); }
+  .vnote-rest { background: var(--surface2); border: 1px dashed var(--border); color: var(--muted); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 2px; }
+
+  .staff-container { background: white; border-radius: var(--radius-sm); padding: 8px; margin: 4px 0; }
+
+  .practice-bar { padding: 0.75rem 1rem; background: var(--surface); border-top: 1px solid var(--border); display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .practice-bar-label { font-size: 0.82rem; color: var(--muted); }
+  .bpm-control { display: flex; align-items: center; gap: 0.5rem; flex: 1; }
+  .bpm-control input[type="range"] { flex: 1; accent-color: var(--accent); }
+  .bpm-display { font-family: var(--mono); font-size: 0.88rem; min-width: 55px; }
+  .play-btn { background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; color: white; border-radius: 50%; width: 48px; height: 48px; font-size: 1.3rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(124,107,255,0.3); flex-shrink: 0; }
+  .play-btn:hover { transform: scale(1.08); }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: none; align-items: center; justify-content: center; padding: 1rem; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; max-width: 380px; width: 100%; }
+  .modal h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; }
+  .modal-actions { display: flex; gap: 0.5rem; margin-top: 1.25rem; justify-content: flex-end; }
+  .btn-secondary { background: none; border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 0.5rem 1rem; cursor: pointer; font-family: var(--font); font-size: 0.9rem; transition: all 0.2s; }
+  .btn-secondary:hover { border-color: var(--accent); }
+  .btn-danger { background: #b71c1c; border: none; color: white; border-radius: var(--radius-sm); padding: 0.5rem 1rem; cursor: pointer; font-family: var(--font); font-size: 0.9rem; font-weight: 600; transition: opacity 0.2s; }
+  .btn-danger:hover { opacity: 0.85; }
+
+  .toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 0.6rem 1.25rem; border-radius: 40px; font-size: 0.9rem; z-index: 300; transition: transform 0.3s; white-space: nowrap; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .legend-bar { display: flex; gap: 0.4rem; padding: 0.4rem 1rem; background: var(--surface2); border-bottom: 1px solid var(--border); flex-wrap: wrap; align-items: center; }
+  .legend-item { display: flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; color: var(--muted); }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+  .info-msg { background: rgba(124,107,255,0.1); border: 1px solid rgba(124,107,255,0.3); border-radius: var(--radius-sm); padding: 0.6rem 1rem; font-size: 0.85rem; color: var(--accent); margin: 0.5rem 1rem; }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 600px) {
+    .home-logo h1 { font-size: 2.2rem; }
+    .note-btn { padding: 0.3rem 0.4rem; min-width: 30px; }
+    .fig-btn { padding: 0.25rem 0.4rem; }
+  }
+</style>
+</head>
+<body>
+
+<div id="screen-home" class="screen active">
+  <div class="home-logo">
+    <span class="sax-icon">🎷</span>
+    <h1>SaxoApp</h1>
+    <p>Partituras visuales de saxofón</p>
+  </div>
+  <div class="home-cards">
+    <div class="home-card teacher" onclick="goTo('teacher-list')">
+      <span class="icon">👩‍🏫</span>
+      <h2>Profesor</h2>
+      <p>Crear y gestionar partituras</p>
+    </div>
+    <div class="home-card student" onclick="goTo('student-list')">
+      <span class="icon">🎓</span>
+      <h2>Alumno</h2>
+      <p>Ver y practicar partituras</p>
+    </div>
+  </div>
+</div>
+
+<div id="screen-teacher-list" class="screen">
+  <div class="topbar">
+    <button class="topbar-back" onclick="goTo('home')">← Inicio</button>
+    <h2>👩‍🏫 Mis Partituras</h2>
+  </div>
+  <div class="list-body" id="teacher-list-body">
+    <div class="list-empty"><span class="icon">🎼</span><p>No hay partituras todavía.<br>¡Crea la primera!</p></div>
+  </div>
+  <button class="fab" onclick="newPartitura()">+</button>
+</div>
+
+<div id="screen-teacher-editor" class="screen">
+  <div class="topbar">
+    <button class="topbar-back" onclick="goTo('teacher-list')">← Lista</button>
+    <h2 id="editor-title-bar">Nueva partitura</h2>
+    <button class="topbar-action" onclick="savePartitura()">Guardar</button>
+  </div>
+  <div class="editor-config">
+    <input type="text" id="ed-titulo" placeholder="Título de la partitura...">
+    <select id="ed-compas" onchange="onCompasChange()">
+      <option value="2/4">2/4</option>
+      <option value="3/4">3/4</option>
+      <option value="4/4" selected>4/4</option>
+      <option value="6/8">6/8</option>
+      <option value="9/8">9/8</option>
+      <option value="12/8">12/8</option>
+    </select>
+  </div>
+  <div class="legend-bar">
+    <span class="legend-item"><span class="legend-dot" style="background:var(--do)"></span>Do</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--re)"></span>Re</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--mi)"></span>Mi</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--fa)"></span>Fa</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--sol)"></span>Sol</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--la)"></span>La</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--si)"></span>Si</span>
+  </div>
+  <div class="note-palette" id="note-palette"></div>
+  <div class="figure-palette">
+    <span class="figure-label">Figura:</span>
+    <div id="fig-buttons"></div>
+  </div>
+  <div class="info-msg" id="ed-info">Selecciona una nota o silencio, luego toca una celda vacía para añadirla. Toca una nota para eliminarla.</div>
+  <div class="editor-timeline-wrap">
+    <div id="editor-timeline"></div>
+    <button class="add-compas-btn" onclick="addCompas()">＋ Añadir compás</button>
+    <div style="height:1rem"></div>
+  </div>
+</div>
+
+<div id="screen-student-list" class="screen">
+  <div class="topbar">
+    <button class="topbar-back" onclick="goTo('home')">← Inicio</button>
+    <h2>🎓 Partituras</h2>
+  </div>
+  <div class="list-body" id="student-list-body">
+    <div class="list-empty"><span class="icon">🎼</span><p>No hay partituras disponibles todavía.</p></div>
+  </div>
+</div>
+
+<div id="screen-student-view" class="screen">
+  <div class="topbar">
+    <button class="topbar-back" onclick="stopPlayback(); goTo('student-list')">← Volver</button>
+    <h2 id="viewer-title">Partitura</h2>
+  </div>
+  <div class="mode-selector">
+    <button class="mode-btn active" id="mode-btn-0" onclick="setMode(0)">🎨 Solo colores</button>
+    <button class="mode-btn" id="mode-btn-1" onclick="setMode(1)">🔤 Colores + letras</button>
+    <button class="mode-btn" id="mode-btn-2" onclick="setMode(2)">⚡ Vista paralela</button>
+    <button class="mode-btn" id="mode-btn-3" onclick="setMode(3)">🎵 Solo pentagrama</button>
+  </div>
+  <div class="legend-bar" id="viewer-legend">
+    <span class="legend-item"><span class="legend-dot" style="background:var(--do)"></span>Do</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--re)"></span>Re</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--mi)"></span>Mi</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--fa)"></span>Fa</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--sol)"></span>Sol</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--la)"></span>La</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--si)"></span>Si</span>
+  </div>
+  <div class="viewer-wrap" id="viewer-wrap"></div>
+  <div class="practice-bar">
+    <div class="bpm-control">
+      <span class="practice-bar-label">BPM</span>
+      <input type="range" min="40" max="200" value="80" id="bpm-slider" oninput="updateBPM(this.value)">
+      <span class="bpm-display" id="bpm-display">80 BPM</span>
+    </div>
+    <button class="play-btn" id="play-btn" onclick="togglePlayback()">▶</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h3 id="modal-title">¿Eliminar partitura?</h3>
+    <p id="modal-msg" style="color:var(--muted);font-size:0.9rem;"></p>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-danger" id="modal-confirm-btn">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const NOTE_NAMES = ['Do','Re','Mi','Fa','Sol','La','Si'];
+const NOTE_KEYS  = ['do','re','mi','fa','sol','la','si'];
+const NOTE_COLORS = { do:'#E53935', re:'#F4511E', mi:'#FFB300', fa:'#43A047', sol:'#1E88E5', la:'#8E24AA', si:'#EC407A' };
+const NOTE_TEXT_COLORS = { do:'white', re:'white', mi:'#1a1000', fa:'white', sol:'white', la:'white', si:'white' };
+const OCTAVAS = [
+  { label:'Grave', suffix:'₁', sufix_label:'G' },
+  { label:'Medio', suffix:'₂', sufix_label:'M' },
+  { label:'Agudo', suffix:'₃', sufix_label:'A' },
+];
+const FIGURES = [
+  { id:'redonda',     name:'Redonda',     glyph:'𝅝', val:16, dot_val:24 },
+  { id:'blanca',      name:'Blanca',      glyph:'𝅗𝅥', val:8,  dot_val:12 },
+  { id:'negra',       name:'Negra',       glyph:'♩', val:4,  dot_val:6  },
+  { id:'corchea',     name:'Corchea',     glyph:'♪', val:2,  dot_val:3  },
+  { id:'semicorchea', name:'Semicorchea', glyph:'♬', val:1,  dot_val:null },
+];
+const COMPAS_BEATS  = { '2/4':8, '3/4':12, '4/4':16, '6/8':12, '9/8':18, '12/8':24 };
+const COMPAS_GROUPS = { '2/4':2, '3/4':3,  '4/4':4,  '6/8':2,  '9/8':3,  '12/8':4  };
+
+const STAFF_POSITIONS = {
+  'do-0':-2,'re-0':-1,'mi-0':0,'fa-0':1,'sol-0':2,'la-0':3,'si-0':4,
+  'do-1':5,'re-1':6,'mi-1':7,'fa-1':8,'sol-1':9,'la-1':10,'si-1':11,
+  'do-2':12,'re-2':13,'mi-2':14,'fa-2':15,'sol-2':16,
+};
+
+let state = {
+  screen: 'home',
+  editor: { id:null, titulo:'', compas:'4/4', compases:[], selectedNote:null, selectedFig:'negra', selectedDot:false },
+  student: { current:null, mode:0, bpm:80, playing:false, playTimer:null, playPos:null }
+};
+
+function goTo(screen) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + screen).classList.add('active');
+  state.screen = screen;
+  if (screen === 'teacher-list') loadTeacherList();
+  if (screen === 'student-list') loadStudentList();
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function openModal(title, msg, onConfirm) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-msg').textContent = msg;
+  document.getElementById('modal-confirm-btn').onclick = () => { closeModal(); onConfirm(); };
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+async function apiGet(path) { const r = await fetch(path); return r.json(); }
+async function apiPost(path, data) { const r = await fetch(path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }); return r.json(); }
+async function apiPut(path, data) { const r = await fetch(path, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }); return r.json(); }
+async function apiDel(path) { const r = await fetch(path, { method:'DELETE' }); return r.json(); }
+
+async function loadTeacherList() {
+  const lista = await apiGet('/api/partituras');
+  const body = document.getElementById('teacher-list-body');
+  if (!lista.length) { body.innerHTML = '<div class="list-empty"><span class="icon">🎼</span><p>No hay partituras todavía.<br>¡Crea la primera pulsando +!</p></div>'; return; }
+  body.innerHTML = lista.map(p => `
+    <div class="partitura-card" onclick="editPartitura('${p.id}')">
+      <div style="font-size:1.8rem">🎼</div>
+      <div class="partitura-card-info">
+        <h3>${escHtml(p.titulo||'Sin título')}</h3>
+        <p>${p.compas} · ${p.numCompases} compás · ${formatDate(p.creadaEn)}</p>
+      </div>
+      <span class="partitura-card-badge">${p.compas}</span>
+      <button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:0.3rem 0.5rem;"
+        onclick="event.stopPropagation();confirmDelete('${p.id}','${escHtml(p.titulo||'Sin título')}')">🗑</button>
+    </div>`).join('');
+}
+
+function confirmDelete(id, titulo) {
+  openModal('Eliminar partitura', `¿Eliminar "${titulo}"? No se puede deshacer.`, async () => {
+    await apiDel('/api/partituras/' + id);
+    showToast('Partitura eliminada');
+    loadTeacherList();
+  });
+}
+
+function newPartitura() {
+  state.editor = { id:null, titulo:'', compas:'4/4', compases:[], selectedNote:null, selectedFig:'negra', selectedDot:false };
+  renderEditorUI();
+  addCompas();
+  goTo('teacher-editor');
+}
+
+async function editPartitura(id) {
+  const p = await apiGet('/api/partituras/' + id);
+  state.editor = { id:p.id, titulo:p.titulo||'', compas:p.compas||'4/4', compases:p.compases||[], selectedNote:null, selectedFig:'negra', selectedDot:false };
+  renderEditorUI();
+  renderTimeline();
+  goTo('teacher-editor');
+}
+
+function renderEditorUI() {
+  document.getElementById('ed-titulo').value = state.editor.titulo;
+  document.getElementById('ed-compas').value = state.editor.compas;
+  document.getElementById('editor-title-bar').textContent = state.editor.id ? 'Editar partitura' : 'Nueva partitura';
+  renderNotePalette();
+  renderFigurePalette();
+}
+
+function onCompasChange() {
+  state.editor.compas = document.getElementById('ed-compas').value;
+  state.editor.compases = state.editor.compases.map(c => ({ notas: padOrTrunc(c.notas, COMPAS_BEATS[state.editor.compas]) }));
+  renderTimeline();
+}
+
+function padOrTrunc(arr, len) {
+  const copy = arr.slice(0, len);
+  while (copy.length < len) copy.push(null);
+  return copy;
+}
+
+function renderNotePalette() {
+  const pal = document.getElementById('note-palette');
+  const sel = state.editor.selectedNote;
+  let html = '<div class="palette-section">';
+  const rSel = sel && sel.type === 'rest' ? ' selected' : '';
+  html += `<button class="rest-btn${rSel}" onclick="selectNote({type:'rest'})">Silencio</button>`;
+  html += '<span style="width:1px;height:32px;background:var(--border);margin:0 4px;flex-shrink:0"></span>';
+  OCTAVAS.forEach((oct, oi) => {
+    html += `<span class="palette-label">${oct.sufix_label}</span>`;
+    NOTE_KEYS.forEach((key, ni) => {
+      const isSel = sel && sel.type==='note' && sel.key===key && sel.oct===oi;
+      const tc = NOTE_TEXT_COLORS[key];
+      html += `<button class="note-btn${isSel?' selected':''}" onclick="selectNote({type:'note',key:'${key}',oct:${oi}})" style="background:${NOTE_COLORS[key]};color:${tc}">
+        <span class="note-name">${NOTE_NAMES[ni]}${oct.suffix}</span></button>`;
+    });
+    if (oi < 2) html += '<span style="width:1px;height:32px;background:var(--border);margin:0 4px;flex-shrink:0"></span>';
+  });
+  html += '</div>';
+  pal.innerHTML = html;
+}
+
+function selectNote(note) { state.editor.selectedNote = note; renderNotePalette(); }
+
+function renderFigurePalette() {
+  const container = document.getElementById('fig-buttons');
+  const selFig = state.editor.selectedFig;
+  const selDot = state.editor.selectedDot;
+  let html = '';
+  FIGURES.forEach(f => {
+    html += `<button class="fig-btn${f.id===selFig?' selected':''}" onclick="selectFig('${f.id}')"><span class="fig-glyph">${f.glyph}</span> ${f.name}</button> `;
+  });
+  const dotFig = FIGURES.find(f => f.id === selFig);
+  const canDot = dotFig && dotFig.dot_val;
+  html += `<button class="fig-btn${selDot?' selected':''}" onclick="toggleDot()" ${canDot?'':'disabled style="opacity:0.3"'}>• Puntillo</button>`;
+  container.innerHTML = html;
+}
+
+function selectFig(id) {
+  state.editor.selectedFig = id;
+  const fig = FIGURES.find(f => f.id === id);
+  if (!fig || !fig.dot_val) state.editor.selectedDot = false;
+  renderFigurePalette();
+}
+
+function toggleDot() {
+  const fig = FIGURES.find(f => f.id === state.editor.selectedFig);
+  if (fig && fig.dot_val) state.editor.selectedDot = !state.editor.selectedDot;
+  renderFigurePalette();
+}
+
+function addCompas() {
+  const beats = COMPAS_BEATS[state.editor.compas];
+  state.editor.compases.push({ notas: Array(beats).fill(null) });
+  renderTimeline();
+}
+
+function renderTimeline() {
+  const container = document.getElementById('editor-timeline');
+  const compas = state.editor.compas;
+  const totalBeats = COMPAS_BEATS[compas];
+  const numGroups = COMPAS_GROUPS[compas];
+  const beatsPerGroup = totalBeats / numGroups;
+  let html = '';
+  state.editor.compases.forEach((c, ci) => {
+    html += `<div class="compas-row"><div class="compas-num">${ci+1}</div><div class="compas-cells">`;
+    for (let gi = 0; gi < numGroups; gi++) {
+      html += `<div class="beat-group">`;
+      for (let bi = 0; bi < beatsPerGroup; bi++) {
+        const ni = gi * beatsPerGroup + bi;
+        const nota = c.notas[ni];
+        if (nota === 'skip') continue;
+        if (nota === null) {
+          const size = 36;
+          html += `<div class="note-cell empty-slot" style="width:${size}px;height:${size}px;" onclick="placeNote(${ci},${ni})"></div>`;
+        } else {
+          html += renderEditorCell(nota, ci, ni);
+        }
+      }
+      html += `</div>`;
+    }
+    html += `</div><button class="compas-del" onclick="deleteCompas(${ci})">✕</button></div>`;
+  });
+  container.innerHTML = html;
+}
+
+function getCellSize(val16ths) { return Math.min(36 + val16ths * 4, 88); }
+
+function renderEditorCell(nota, ci, ni) {
+  if (!nota || nota === 'skip') return '';
+  const fig = FIGURES.find(f => f.id === nota.fig) || FIGURES[2];
+  const val = nota.dot && fig.dot_val ? fig.dot_val : fig.val;
+  const size = getCellSize(val);
+  if (nota.type === 'rest') {
+    return `<div class="note-cell rest-cell" style="width:${size}px;height:${size}px;" onclick="removeNote(${ci},${ni})">
+      <span class="cell-label">𝄽</span><span class="cell-dur">${fig.name.substring(0,3)}${nota.dot?'.':''}</span></div>`;
+  }
+  const color = NOTE_COLORS[nota.key] || '#888';
+  const tc = NOTE_TEXT_COLORS[nota.key] || 'white';
+  const octSuf = OCTAVAS[nota.oct]?.suffix || '';
+  return `<div class="note-cell" style="width:${size}px;height:${size}px;background:${color};" onclick="removeNote(${ci},${ni})">
+    <span class="cell-label" style="color:${tc}">${NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]}</span>
+    <span class="cell-dur" style="color:${tc}">${fig.glyph}${nota.dot?'·':''}${octSuf}</span></div>`;
+}
+
+function placeNote(ci, ni) {
+  const sel = state.editor.selectedNote;
+  if (!sel) { showToast('Selecciona primero una nota o silencio'); return; }
+  const fig = FIGURES.find(f => f.id === state.editor.selectedFig) || FIGURES[2];
+  const dot = state.editor.selectedDot && !!fig.dot_val;
+  const val = dot ? fig.dot_val : fig.val;
+  const c = state.editor.compases[ci];
+  const totalBeats = COMPAS_BEATS[state.editor.compas];
+  if (ni + val > totalBeats) { showToast('No hay espacio suficiente'); return; }
+  for (let i = ni; i < ni + val; i++) { if (c.notas[i] !== null) { showToast('Hay notas en ese espacio'); return; } }
+  const nota = sel.type === 'rest'
+    ? { type:'rest', fig:fig.id, dot }
+    : { type:'note', key:sel.key, oct:sel.oct, fig:fig.id, dot };
+  c.notas[ni] = nota;
+  for (let i = ni+1; i < ni+val; i++) c.notas[i] = 'skip';
+  renderTimeline();
+}
+
+function removeNote(ci, ni) {
+  const c = state.editor.compases[ci];
+  const nota = c.notas[ni];
+  if (!nota || nota === 'skip') return;
+  const fig = FIGURES.find(f => f.id === nota.fig) || FIGURES[2];
+  const val = nota.dot && fig.dot_val ? fig.dot_val : fig.val;
+  for (let i = ni; i < ni+val; i++) c.notas[i] = null;
+  renderTimeline();
+}
+
+function deleteCompas(ci) { state.editor.compases.splice(ci, 1); renderTimeline(); }
+
+async function savePartitura() {
+  const titulo = document.getElementById('ed-titulo').value.trim();
+  if (!titulo) { showToast('Escribe un título'); return; }
+  const data = { titulo, compas: state.editor.compas, compases: state.editor.compases };
+  try {
+    if (state.editor.id) {
+      await apiPut('/api/partituras/' + state.editor.id, data);
+      showToast('✓ Partitura actualizada');
+    } else {
+      const res = await apiPost('/api/partituras', data);
+      state.editor.id = res.id;
+      showToast('✓ Partitura guardada');
+    }
+  } catch(e) { showToast('Error al guardar'); }
+}
+
+async function loadStudentList() {
+  const lista = await apiGet('/api/partituras');
+  const body = document.getElementById('student-list-body');
+  if (!lista.length) { body.innerHTML = '<div class="list-empty"><span class="icon">🎼</span><p>No hay partituras disponibles todavía.</p></div>'; return; }
+  body.innerHTML = lista.map(p => `
+    <div class="partitura-card" onclick="openPartitura('${p.id}')">
+      <div style="font-size:1.8rem">🎵</div>
+      <div class="partitura-card-info">
+        <h3>${escHtml(p.titulo||'Sin título')}</h3>
+        <p>${p.compas} · ${p.numCompases} compás</p>
+      </div>
+      <div>→</div>
+    </div>`).join('');
+}
+
+async function openPartitura(id) {
+  const p = await apiGet('/api/partituras/' + id);
+  state.student.current = p;
+  state.student.mode = 0;
+  state.student.playing = false;
+  state.student.playPos = null;
+  document.getElementById('viewer-title').textContent = p.titulo || 'Partitura';
+  document.getElementById('bpm-slider').value = state.student.bpm;
+  document.getElementById('bpm-display').textContent = state.student.bpm + ' BPM';
+  setMode(0);
+  goTo('student-view');
+}
+
+function setMode(mode) {
+  stopPlayback();
+  state.student.mode = mode;
+  for (let i = 0; i < 4; i++) document.getElementById('mode-btn-'+i).classList.toggle('active', i===mode);
+  document.getElementById('viewer-legend').style.display = mode===3 ? 'none' : 'flex';
+  renderViewer();
+}
+
+function renderViewer() {
+  const p = state.student.current;
+  if (!p || !p.compases || !p.compases.length) {
+    document.getElementById('viewer-wrap').innerHTML = '<p style="color:var(--muted);padding:2rem;text-align:center">Esta partitura no tiene notas.</p>';
+    return;
+  }
+  const mode = state.student.mode;
+  const compas = p.compas || '4/4';
+  const numGroups = COMPAS_GROUPS[compas];
+  const totalBeats = COMPAS_BEATS[compas];
+  const beatsPerGroup = totalBeats / numGroups;
+  let html = '';
+  p.compases.forEach((c, ci) => {
+    html += `<div class="viewer-compas"><div class="viewer-compas-header"><span>Compás ${ci+1}</span><span>${compas}</span></div>`;
+    if (mode === 0 || mode === 1) {
+      html += `<div class="viewer-cells">`;
+      for (let gi = 0; gi < numGroups; gi++) {
+        if (gi > 0) html += '<div class="viewer-beat-sep"></div>';
+        for (let bi = 0; bi < beatsPerGroup; bi++) {
+          const ni = gi*beatsPerGroup+bi;
+          const nota = c.notas[ni];
+          if (nota === 'skip' || nota === null) continue;
+          html += renderViewerNote(nota, mode, ci, ni);
+        }
+      }
+      html += '</div>';
+    } else if (mode === 2) {
+      html += `<div class="viewer-cells">`;
+      for (let gi = 0; gi < numGroups; gi++) {
+        if (gi > 0) html += '<div class="viewer-beat-sep"></div>';
+        for (let bi = 0; bi < beatsPerGroup; bi++) {
+          const ni = gi*beatsPerGroup+bi;
+          const nota = c.notas[ni];
+          if (nota === 'skip' || nota === null) continue;
+          html += renderViewerNote(nota, 1, ci, ni);
+        }
+      }
+      html += '</div>';
+      html += `<div class="staff-container">${renderStaffSVG(c, compas, ci)}</div>`;
+    } else if (mode === 3) {
+      html += `<div class="staff-container">${renderStaffSVG(c, compas, ci)}</div>`;
+    }
+    html += '</div>';
+  });
+  document.getElementById('viewer-wrap').innerHTML = html;
+}
+
+function renderViewerNote(nota, mode, ci, ni) {
+  if (!nota || nota === 'skip') return '';
+  const fig = FIGURES.find(f => f.id === nota.fig) || FIGURES[2];
+  const dot = nota.dot && fig.dot_val;
+  const val = dot ? fig.dot_val : fig.val;
+  const size = Math.min(36 + val*4, 80);
+  const playActive = state.student.playing && state.student.playPos && state.student.playPos.ci===ci && state.student.playPos.ni===ni;
+  if (nota.type === 'rest') {
+    return `<div class="vnote vnote-rest${playActive?' active-note':''}" style="width:${size}px;height:${size}px;" id="vn-${ci}-${ni}">
+      ${mode===1?'<span style="font-size:1.1rem">𝄽</span>':''}
+      <span class="vnote-dur">${fig.glyph}${dot?'·':''}</span></div>`;
+  }
+  const color = NOTE_COLORS[nota.key] || '#888';
+  const tc = NOTE_TEXT_COLORS[nota.key] || 'white';
+  const noteName = NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)];
+  const octSuf = OCTAVAS[nota.oct]?.suffix || '';
+  return `<div class="vnote${playActive?' active-note':''}" style="width:${size}px;height:${size}px;background:${color};" id="vn-${ci}-${ni}">
+    ${mode===1?`<span class="vnote-name" style="font-size:${size>50?'0.85':'0.7'}rem;color:${tc}">${noteName}</span>`:''}
+    ${mode===1?`<span class="vnote-dur" style="color:${tc}">${fig.glyph}${dot?'·':''}${octSuf}</span>`:''}
+    ${nota.oct>0?`<span style="position:absolute;bottom:3px;right:4px;font-size:0.55rem;color:${tc};opacity:0.7">${octSuf}</span>`:''}
+  </div>`;
+}
+
+function renderStaffSVG(compas_data, compas_sig, ci) {
+  const W=700, H=90, LINE_SPACING=8, STAFF_TOP=22, STAFF_BOTTOM=STAFF_TOP+4*LINE_SPACING;
+  const NOTE_R=5, CLEF_W=30, SIG_W=30, MARGIN=CLEF_W+SIG_W+10;
+  const notas = (compas_data.notas||[]).filter(n => n && n!=='skip');
+  const noteCount = Math.max(notas.length, 1);
+  const noteSpacing = Math.max(30, (W-MARGIN-20)/noteCount);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:${H}px;display:block">`;
+  svg += `<rect width="${W}" height="${H}" fill="white"/>`;
+  for (let l=0; l<5; l++) {
+    const y = STAFF_TOP+l*LINE_SPACING;
+    svg += `<line x1="5" y1="${y}" x2="${W-5}" y2="${y}" stroke="#333" stroke-width="0.8"/>`;
+  }
+  svg += `<text x="8" y="${STAFF_BOTTOM+2}" font-size="42" fill="#333" font-family="serif" dominant-baseline="alphabetic" transform="translate(0,-8)">𝄞</text>`;
+  const [num, den] = compas_sig.split('/');
+  svg += `<text x="${CLEF_W+4}" y="${STAFF_TOP+9}" font-size="11" fill="#333" font-weight="bold" text-anchor="middle">${num}</text>`;
+  svg += `<text x="${CLEF_W+4}" y="${STAFF_TOP+22}" font-size="11" fill="#333" font-weight="bold" text-anchor="middle">${den}</text>`;
+  let xPos = MARGIN;
+  notas.forEach((nota) => {
+    if (!nota || nota==='skip') return;
+    const x = xPos + noteSpacing*0.5;
+    xPos += noteSpacing;
+    if (nota.type==='rest') {
+      svg += `<text x="${x}" y="${STAFF_TOP+2*LINE_SPACING}" text-anchor="middle" font-size="14" fill="#333">𝄼</text>`;
+      return;
+    }
+    const posKey = `${nota.key}-${nota.oct}`;
+    const pos = STAFF_POSITIONS[posKey] ?? 2;
+    const yNote = STAFF_BOTTOM - pos*(LINE_SPACING/2);
+    if (pos<0) { for (let lp=-1; lp>=pos; lp-=2) { const yl=STAFF_BOTTOM-lp*(LINE_SPACING/2); svg+=`<line x1="${x-9}" y1="${yl}" x2="${x+9}" y2="${yl}" stroke="#333" stroke-width="0.8"/>`; } }
+    if (pos>8) { for (let lp=9; lp<=pos; lp+=2) { const yl=STAFF_BOTTOM-lp*(LINE_SPACING/2); svg+=`<line x1="${x-9}" y1="${yl}" x2="${x+9}" y2="${yl}" stroke="#333" stroke-width="0.8"/>`; } }
+    const fillColor = NOTE_COLORS[nota.key]||'#000';
+    const fig = FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+    const isFilled = fig.id!=='redonda' && fig.id!=='blanca';
+    svg += `<ellipse cx="${x}" cy="${yNote}" rx="${NOTE_R+1}" ry="${NOTE_R-1}" fill="${isFilled?fillColor:'white'}" stroke="${fillColor}" stroke-width="1.5"/>`;
+    if (fig.id!=='redonda') {
+      const stemDir = pos>=4?-1:1;
+      const stemX = stemDir<0?x-NOTE_R:x+NOTE_R;
+      const stemY = yNote+stemDir*25;
+      svg += `<line x1="${stemX}" y1="${yNote}" x2="${stemX}" y2="${stemY}" stroke="${fillColor}" stroke-width="1.5"/>`;
+      if (fig.id==='corchea'||fig.id==='semicorchea') {
+        svg += `<path d="M${stemX},${stemY} Q${stemX+8*stemDir},${stemY+10*stemDir} ${stemX+5*stemDir},${stemY+20*stemDir}" fill="none" stroke="${fillColor}" stroke-width="1.5"/>`;
+        if (fig.id==='semicorchea') svg += `<path d="M${stemX},${stemY+6} Q${stemX+8*stemDir},${stemY+16*stemDir} ${stemX+5*stemDir},${stemY+26*stemDir}" fill="none" stroke="${fillColor}" stroke-width="1.5"/>`;
+      }
+    }
+    if (nota.dot) svg += `<circle cx="${x+NOTE_R+3}" cy="${yNote-(pos%2===0?2:0)}" r="1.5" fill="${fillColor}"/>`;
+    if (state.student.mode===2||state.student.mode===3) {
+      svg += `<text x="${x}" y="${H-3}" text-anchor="middle" font-size="7" fill="${fillColor}" font-weight="bold" font-family="sans-serif">${NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]}</text>`;
+    }
+  });
+  svg += `<line x1="${W-5}" y1="${STAFF_TOP}" x2="${W-5}" y2="${STAFF_BOTTOM}" stroke="#333" stroke-width="1.5"/>`;
+  svg += '</svg>';
+  return svg;
+}
+
+function updateBPM(val) { state.student.bpm=parseInt(val); document.getElementById('bpm-display').textContent=val+' BPM'; }
+
+function togglePlayback() { state.student.playing ? stopPlayback() : startPlayback(); }
+
+function startPlayback() {
+  const p = state.student.current;
+  if (!p||!p.compases) return;
+  state.student.playing = true;
+  document.getElementById('play-btn').textContent = '⏹';
+  const seq = [];
+  p.compases.forEach((c,ci) => {
+    (c.notas||[]).forEach((nota,ni) => {
+      if (nota && nota!=='skip') {
+        const fig = FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+        const dot = nota.dot && fig.dot_val;
+        const val = dot?fig.dot_val:fig.val;
+        const ms = val*(60000/state.student.bpm/4);
+        seq.push({ci,ni,dur_ms:ms});
+      }
+    });
+  });
+  let idx=0;
+  function playNext() {
+    if (!state.student.playing||idx>=seq.length) { stopPlayback(); return; }
+    const item=seq[idx];
+    state.student.playPos={ci:item.ci,ni:item.ni};
+    highlightNote(item.ci,item.ni);
+    idx++;
+    state.student.playTimer=setTimeout(playNext,item.dur_ms);
+  }
+  playNext();
+}
+
+function stopPlayback() {
+  state.student.playing=false;
+  clearTimeout(state.student.playTimer);
+  state.student.playPos=null;
+  const btn=document.getElementById('play-btn');
+  if(btn) btn.textContent='▶';
+  document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
+}
+
+function highlightNote(ci,ni) {
+  document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
+  const el=document.getElementById(`vn-${ci}-${ni}`);
+  if(el){el.classList.add('active-note');el.scrollIntoView({behavior:'smooth',block:'nearest'});}
+}
+
+function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function formatDate(iso) { if(!iso) return ''; return new Date(iso).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}); }
+
+document.addEventListener('DOMContentLoaded', () => { renderNotePalette(); renderFigurePalette(); });
+</script>
+</body>
+</html>
