@@ -4,241 +4,178 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>SaxoApp — Partituras de Saxofón</title>
+<script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;900&family=Space+Mono:wght@400;700&display=swap');
-
-  :root {
-    --do: #E53935; --re: #F4511E; --mi: #FFB300; --fa: #43A047;
-    --sol: #1E88E5; --la: #8E24AA; --si: #EC407A;
-    --bg: #0f0f14; --surface: #1a1a24; --surface2: #22222f;
-    --border: #2e2e40; --text: #e8e8f0; --muted: #7a7a9a;
-    --accent: #7c6bff; --accent2: #ff6b9d;
-    --radius: 12px; --radius-sm: 8px;
-    --font: 'Nunito', sans-serif; --mono: 'Space Mono', monospace;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: var(--font);
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    overscroll-behavior: none;
-  }
-
-  .screen { display: none; min-height: 100vh; flex-direction: column; }
-  .screen.active { display: flex; }
-
-  #screen-home {
-    align-items: center;
-    justify-content: center;
-    gap: 2rem;
-    padding: 2rem;
-    background: radial-gradient(ellipse at 30% 20%, #1a0f2e 0%, var(--bg) 60%),
-                radial-gradient(ellipse at 70% 80%, #0f1a2e 0%, transparent 60%);
-  }
-
-  .home-logo { text-align: center; }
-  .home-logo .sax-icon { font-size: 5rem; display: block; margin-bottom: 0.5rem; filter: drop-shadow(0 0 20px rgba(124,107,255,0.5)); }
-  .home-logo h1 { font-size: 2.8rem; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-  .home-logo p { color: var(--muted); margin-top: 0.5rem; font-size: 1.05rem; }
-
-  .home-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; width: 100%; max-width: 500px; }
-  @media (max-width: 420px) { .home-cards { grid-template-columns: 1fr; } }
-
-  .home-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 2rem 1.5rem; text-align: center; cursor: pointer; transition: all 0.25s; user-select: none; }
-  .home-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 12px 30px rgba(124,107,255,0.15); }
-  .home-card:active { transform: translateY(0); }
-  .home-card .icon { font-size: 2.5rem; display: block; margin-bottom: 0.75rem; }
-  .home-card h2 { font-size: 1.2rem; font-weight: 700; }
-  .home-card p { color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
-  .home-card.teacher { border-color: rgba(124,107,255,0.3); }
-  .home-card.student { border-color: rgba(255,107,157,0.3); }
-  .home-card.teacher:hover { border-color: var(--accent); box-shadow: 0 12px 30px rgba(124,107,255,0.2); }
-  .home-card.student:hover { border-color: var(--accent2); box-shadow: 0 12px 30px rgba(255,107,157,0.2); }
-
-  .topbar { display: flex; align-items: center; gap: 0.75rem; padding: 0.9rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
-  .topbar-back { background: none; border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 0.4rem 0.75rem; cursor: pointer; font-family: var(--font); font-size: 0.9rem; display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s; }
-  .topbar-back:hover { border-color: var(--accent); color: var(--accent); }
-  .topbar h2 { font-size: 1.05rem; font-weight: 700; flex: 1; }
-  .topbar-action { background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; color: white; border-radius: var(--radius-sm); padding: 0.5rem 1rem; cursor: pointer; font-family: var(--font); font-size: 0.9rem; font-weight: 600; transition: opacity 0.2s; }
-  .topbar-action:hover { opacity: 0.85; }
-  .topbar-action:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  #screen-teacher-list { background: var(--bg); }
-  .list-body { padding: 1rem; flex: 1; overflow-y: auto; }
-  .list-empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }
-  .list-empty .icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
-
-  .partitura-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 1rem; cursor: pointer; transition: all 0.2s; }
-  .partitura-card:hover { border-color: var(--accent); transform: translateX(3px); }
-  .partitura-card-info { flex: 1; }
-  .partitura-card-info h3 { font-size: 1rem; font-weight: 700; }
-  .partitura-card-info p { color: var(--muted); font-size: 0.82rem; margin-top: 0.2rem; }
-  .partitura-card-badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 0.25rem 0.6rem; font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
-
-  .fab { position: fixed; bottom: 1.5rem; right: 1.5rem; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; border: none; border-radius: 50%; width: 56px; height: 56px; font-size: 1.8rem; cursor: pointer; box-shadow: 0 4px 20px rgba(124,107,255,0.4); transition: transform 0.2s, box-shadow 0.2s; display: flex; align-items: center; justify-content: center; z-index: 50; }
-  .fab:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(124,107,255,0.5); }
-
-  #screen-teacher-editor { background: var(--bg); }
-
-  .editor-config { display: flex; gap: 0.5rem; padding: 0.75rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap; align-items: center; }
-  .editor-config input[type="text"] { flex: 1; min-width: 120px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; font-family: var(--font); font-size: 0.95rem; outline: none; }
-  .editor-config input[type="text"]:focus { border-color: var(--accent); }
-  .editor-config select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; font-family: var(--font); font-size: 0.9rem; outline: none; cursor: pointer; }
-
-  .note-palette { padding: 0.6rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .palette-section { display: flex; gap: 0.35rem; align-items: center; flex-wrap: nowrap; padding-bottom: 0.3rem; }
-  .palette-label { font-size: 0.72rem; color: var(--muted); white-space: nowrap; min-width: 40px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-
-  .note-btn { border: 2px solid transparent; border-radius: 8px; padding: 0.35rem 0.55rem; cursor: pointer; font-size: 0.78rem; font-weight: 700; font-family: var(--mono); transition: all 0.15s; white-space: nowrap; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 36px; }
-  .note-btn .note-name { font-size: 0.75rem; font-weight: 700; }
-  .note-btn:hover { opacity: 0.85; transform: translateY(-1px); }
-  .note-btn.selected { border-color: white; box-shadow: 0 0 12px rgba(255,255,255,0.3); }
-
-  .rest-btn { background: var(--surface2); border: 2px solid var(--border); color: var(--muted); border-radius: 8px; padding: 0.35rem 0.55rem; cursor: pointer; font-size: 0.78rem; font-weight: 700; font-family: var(--mono); transition: all 0.15s; white-space: nowrap; }
-  .rest-btn:hover { border-color: var(--accent); }
-  .rest-btn.selected { border-color: var(--accent); color: var(--accent); }
-
-  .figure-palette { padding: 0.6rem 1rem; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
-  .figure-label { font-size: 0.72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 0.25rem; }
-  .fig-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 0.3rem 0.6rem; cursor: pointer; font-family: var(--mono); font-size: 0.82rem; transition: all 0.15s; display: flex; align-items: center; gap: 0.3rem; }
-  .fig-btn:hover { border-color: var(--accent); }
-  .fig-btn.selected { background: var(--accent); border-color: var(--accent); color: white; }
-  .fig-glyph { font-size: 1.1rem; }
-
-  .editor-timeline-wrap { flex: 1; overflow-y: auto; padding: 1rem; }
-  .compas-row { display: flex; align-items: stretch; gap: 0.5rem; margin-bottom: 0.6rem; }
-  .compas-num { font-size: 0.7rem; color: var(--muted); width: 22px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); flex-shrink: 0; }
-  .compas-cells { display: flex; gap: 4px; flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px; min-height: 64px; align-items: center; }
-  .beat-group { display: flex; gap: 3px; align-items: center; flex: 1; justify-content: center; padding: 0 2px; border-right: 1px dashed var(--border); min-height: 52px; }
-  .beat-group:last-child { border-right: none; }
-
-  .note-cell { border-radius: 6px; cursor: pointer; transition: all 0.15s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; position: relative; flex-shrink: 0; }
-  .note-cell:hover { filter: brightness(1.2); transform: scale(1.05); }
-  .note-cell .cell-label { font-size: 0.62rem; font-weight: 700; font-family: var(--mono); text-align: center; color: rgba(0,0,0,0.75); line-height: 1; pointer-events: none; }
-  .note-cell .cell-dur { font-size: 0.55rem; color: rgba(0,0,0,0.55); pointer-events: none; }
-  .note-cell.rest-cell { background: var(--surface2); border: 1px dashed var(--border); color: var(--muted); }
-  .note-cell.empty-slot { background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.08); cursor: pointer; }
-  .note-cell.empty-slot:hover { background: rgba(124,107,255,0.1); border-color: var(--accent); }
-
-  .compas-del { background: none; border: 1px solid transparent; color: var(--muted); cursor: pointer; border-radius: 6px; padding: 0 0.3rem; font-size: 0.85rem; align-self: center; transition: all 0.15s; flex-shrink: 0; }
-  .compas-del:hover { border-color: #e53935; color: #e53935; }
-
-  .add-compas-btn { width: 100%; background: var(--surface); border: 1px dashed var(--border); color: var(--muted); border-radius: var(--radius); padding: 0.85rem; cursor: pointer; font-family: var(--font); font-size: 0.95rem; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
-  .add-compas-btn:hover { border-color: var(--accent); color: var(--accent); }
-
-  #screen-student-list { background: var(--bg); }
-
-  .mode-selector { padding: 0.75rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; gap: 0.5rem; flex-wrap: wrap; }
-  .mode-btn { flex: 1; min-width: 120px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: var(--radius-sm); padding: 0.5rem 0.5rem; cursor: pointer; font-family: var(--font); font-size: 0.78rem; font-weight: 600; text-align: center; transition: all 0.2s; }
-  .mode-btn:hover { border-color: var(--accent); color: var(--text); }
-  .mode-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
-
-  #screen-student-view { background: var(--bg); }
-  .viewer-wrap { flex: 1; overflow-y: auto; padding: 1rem; }
-
-  .viewer-compas { margin-bottom: 0.75rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-  .viewer-compas-header { padding: 0.3rem 0.75rem; font-size: 0.7rem; color: var(--muted); font-family: var(--mono); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
-  .viewer-cells { display: flex; padding: 8px; gap: 5px; flex-wrap: wrap; align-items: center; min-height: 70px; }
-  .viewer-beat-sep { width: 1px; height: 40px; background: var(--border); flex-shrink: 0; align-self: center; }
-
-  .vnote { border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: default; position: relative; transition: transform 0.1s; }
-  .vnote.active-note { box-shadow: 0 0 0 3px white, 0 0 20px rgba(255,255,255,0.4); transform: scale(1.1); }
-  .vnote-name { font-weight: 800; line-height: 1; font-family: var(--font); }
-  .vnote-dur { font-size: 0.55rem; opacity: 0.7; font-family: var(--mono); }
-  .vnote-rest { background: var(--surface2); border: 1px dashed var(--border); color: var(--muted); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 2px; }
-
-  .staff-container { background: white; border-radius: var(--radius-sm); padding: 8px; margin: 4px 0; }
-
-  .practice-bar { padding: 0.75rem 1rem; background: var(--surface); border-top: 1px solid var(--border); display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-  .practice-bar-label { font-size: 0.82rem; color: var(--muted); }
-  .bpm-control { display: flex; align-items: center; gap: 0.5rem; flex: 1; }
-  .bpm-control input[type="range"] { flex: 1; accent-color: var(--accent); }
-  .bpm-display { font-family: var(--mono); font-size: 0.88rem; min-width: 55px; }
-  .play-btn { background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; color: white; border-radius: 50%; width: 48px; height: 48px; font-size: 1.3rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(124,107,255,0.3); flex-shrink: 0; }
-  .play-btn:hover { transform: scale(1.08); }
-
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: none; align-items: center; justify-content: center; padding: 1rem; }
-  .modal-overlay.open { display: flex; }
-  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; max-width: 380px; width: 100%; }
-  .modal h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; }
-  .modal-actions { display: flex; gap: 0.5rem; margin-top: 1.25rem; justify-content: flex-end; }
-  .btn-secondary { background: none; border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 0.5rem 1rem; cursor: pointer; font-family: var(--font); font-size: 0.9rem; transition: all 0.2s; }
-  .btn-secondary:hover { border-color: var(--accent); }
-  .btn-danger { background: #b71c1c; border: none; color: white; border-radius: var(--radius-sm); padding: 0.5rem 1rem; cursor: pointer; font-family: var(--font); font-size: 0.9rem; font-weight: 600; transition: opacity 0.2s; }
-  .btn-danger:hover { opacity: 0.85; }
-
-  .toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 0.6rem 1.25rem; border-radius: 40px; font-size: 0.9rem; z-index: 300; transition: transform 0.3s; white-space: nowrap; }
-  .toast.show { transform: translateX(-50%) translateY(0); }
-
-  .legend-bar { display: flex; gap: 0.4rem; padding: 0.4rem 1rem; background: var(--surface2); border-bottom: 1px solid var(--border); flex-wrap: wrap; align-items: center; }
-  .legend-item { display: flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; color: var(--muted); }
-  .legend-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
-
-  .info-msg { background: rgba(124,107,255,0.1); border: 1px solid rgba(124,107,255,0.3); border-radius: var(--radius-sm); padding: 0.6rem 1rem; font-size: 0.85rem; color: var(--accent); margin: 0.5rem 1rem; }
-
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-  @media (max-width: 600px) {
-    .home-logo h1 { font-size: 2.2rem; }
-    .note-btn { padding: 0.3rem 0.4rem; min-width: 30px; }
-    .fig-btn { padding: 0.25rem 0.4rem; }
-  }
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;900&family=Space+Mono:wght@400;700&display=swap');
+:root {
+  --do:#E53935;--re:#E64A19;--mi:#F9A825;--fa:#2E7D32;--sol:#1565C0;--la:#6A1B9A;--si:#AD1457;
+  --bg:#F5F0E8;--surface:#FFFDF7;--surface2:#EDE8DC;--border:#C8BFA8;--border2:#A89880;
+  --text:#2C2416;--muted:#7A6E5F;--text-light:#5A4E3F;
+  --accent:#5B4FCF;--accent2:#C2185B;--accent-bg:#EDE9FF;--accent2-bg:#FCE4EC;
+  --radius:12px;--radius-sm:8px;--shadow:0 2px 8px rgba(0,0,0,0.10);
+  --font:'Nunito',sans-serif;--mono:'Space Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overscroll-behavior:none;}
+.screen{display:none;min-height:100vh;flex-direction:column;}
+.screen.active{display:flex;}
+#screen-home{align-items:center;justify-content:center;gap:2rem;padding:2rem;background:radial-gradient(ellipse at 30% 30%,#EDE0C4 0%,var(--bg) 65%);}
+.home-logo{text-align:center;}
+.home-logo .sax-icon{font-size:5rem;display:block;margin-bottom:0.5rem;}
+.home-logo h1{font-size:3rem;font-weight:900;letter-spacing:-1px;color:var(--accent);line-height:1;}
+.home-logo p{color:var(--muted);margin-top:0.5rem;font-size:1.05rem;}
+.home-cards{display:grid;grid-template-columns:1fr 1fr;gap:1rem;width:100%;max-width:480px;}
+@media(max-width:400px){.home-cards{grid-template-columns:1fr;}}
+.home-card{background:var(--surface);border:2px solid var(--border);border-radius:var(--radius);padding:2rem 1.5rem;text-align:center;cursor:pointer;transition:all 0.2s;box-shadow:var(--shadow);}
+.home-card:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,0.13);}
+.home-card .icon{font-size:2.8rem;display:block;margin-bottom:0.75rem;}
+.home-card h2{font-size:1.25rem;font-weight:800;color:var(--text);}
+.home-card p{color:var(--muted);font-size:0.85rem;margin-top:0.3rem;}
+.home-card.teacher:hover{border-color:var(--accent);}
+.home-card.student:hover{border-color:var(--accent2);}
+.topbar{display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1rem;background:var(--surface);border-bottom:2px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--shadow);}
+.topbar-back{background:none;border:1.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:0.4rem 0.75rem;cursor:pointer;font-family:var(--font);font-size:0.9rem;font-weight:600;transition:all 0.2s;}
+.topbar-back:hover{border-color:var(--accent);color:var(--accent);}
+.topbar h2{font-size:1.05rem;font-weight:800;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.topbar-action{background:var(--accent);border:none;color:white;border-radius:var(--radius-sm);padding:0.5rem 1.1rem;cursor:pointer;font-family:var(--font);font-size:0.9rem;font-weight:700;transition:opacity 0.2s;white-space:nowrap;}
+.topbar-action:hover{opacity:0.85;}
+.topbar-action:disabled{opacity:0.4;cursor:not-allowed;}
+.list-body{padding:1rem;flex:1;overflow-y:auto;}
+.list-empty{text-align:center;color:var(--muted);padding:3rem 1rem;}
+.list-empty .icon{font-size:3rem;display:block;margin-bottom:1rem;}
+.partitura-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:1rem;cursor:pointer;transition:all 0.2s;box-shadow:var(--shadow);}
+.partitura-card:hover{border-color:var(--accent);transform:translateX(4px);}
+.partitura-card-info{flex:1;}
+.partitura-card-info h3{font-size:1rem;font-weight:800;}
+.partitura-card-info p{color:var(--muted);font-size:0.82rem;margin-top:0.2rem;}
+.partitura-card-badge{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:0.25rem 0.65rem;font-size:0.78rem;color:var(--muted);white-space:nowrap;font-family:var(--mono);}
+.fab{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--accent);color:white;border:none;border-radius:50%;width:56px;height:56px;font-size:1.8rem;cursor:pointer;box-shadow:0 4px 16px rgba(91,79,207,0.4);transition:transform 0.2s;display:flex;align-items:center;justify-content:center;z-index:50;}
+.fab:hover{transform:scale(1.1);}
+.editor-config{display:flex;gap:0.5rem;padding:0.7rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);flex-wrap:wrap;align-items:center;}
+.editor-config input[type="text"]{flex:1;min-width:140px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:0.45rem 0.75rem;font-family:var(--font);font-size:0.95rem;font-weight:600;outline:none;}
+.editor-config input[type="text"]:focus{border-color:var(--accent);}
+.editor-config select{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:0.45rem 0.6rem;font-family:var(--font);font-size:0.85rem;font-weight:600;outline:none;cursor:pointer;}
+.legend-bar{display:flex;gap:0.4rem;padding:0.4rem 1rem;background:var(--surface2);border-bottom:1.5px solid var(--border);flex-wrap:wrap;align-items:center;}
+.legend-item{display:flex;align-items:center;gap:0.3rem;font-size:0.75rem;color:var(--text-light);font-weight:600;}
+.legend-dot{width:14px;height:14px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,0.15);}
+.note-palette{padding:0.5rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.palette-row{display:flex;gap:0.3rem;align-items:center;flex-wrap:nowrap;padding-bottom:0.2rem;min-width:max-content;}
+.palette-label{font-size:0.68rem;color:var(--muted);white-space:nowrap;min-width:36px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;}
+.palette-sep{width:1.5px;height:30px;background:var(--border);margin:0 4px;flex-shrink:0;border-radius:1px;}
+.note-btn{border:2.5px solid transparent;border-radius:8px;padding:0.3rem 0.45rem;cursor:pointer;font-weight:800;font-family:var(--mono);transition:all 0.15s;white-space:nowrap;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:36px;}
+.note-btn:hover{opacity:0.8;transform:translateY(-2px);}
+.note-btn.selected{border-color:#2C2416;box-shadow:0 0 0 3px rgba(0,0,0,0.25);}
+.note-btn .nn{font-size:0.72rem;}
+.note-btn .na{font-size:0.58rem;opacity:0.85;}
+.rest-btn{background:var(--surface2);border:2px solid var(--border);color:var(--muted);border-radius:8px;padding:0.3rem 0.55rem;cursor:pointer;font-size:0.75rem;font-weight:700;font-family:var(--mono);transition:all 0.15s;}
+.rest-btn:hover{border-color:var(--accent);}
+.rest-btn.selected{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);}
+.alt-row{display:flex;gap:0.35rem;align-items:center;padding:0.35rem 1rem;background:var(--surface2);border-bottom:1.5px solid var(--border);flex-wrap:wrap;}
+.alt-label{font-size:0.68rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:0.06em;margin-right:0.2rem;}
+.alt-btn{background:var(--surface);border:1.5px solid var(--border);color:var(--text);border-radius:6px;padding:0.28rem 0.7rem;cursor:pointer;font-size:0.92rem;font-weight:700;transition:all 0.15s;line-height:1;}
+.alt-btn:hover{border-color:var(--accent);}
+.alt-btn.sel-sharp{background:#FFF3E0;border-color:#E65100;color:#E65100;}
+.alt-btn.sel-flat{background:#E3F2FD;border-color:#1565C0;color:#1565C0;}
+.alt-btn.sel-none{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+.figure-palette{padding:0.4rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;}
+.figure-label{font-size:0.68rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:0.06em;margin-right:0.2rem;}
+.fig-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--text-light);border-radius:var(--radius-sm);padding:0.3rem 0.6rem;cursor:pointer;font-family:var(--mono);font-size:0.8rem;font-weight:600;transition:all 0.15s;display:flex;align-items:center;gap:0.25rem;}
+.fig-btn:hover{border-color:var(--accent);}
+.fig-btn.selected{background:var(--accent);border-color:var(--accent);color:white;}
+.fig-sep{width:1.5px;height:22px;background:var(--border);margin:0 2px;border-radius:1px;}
+.editor-timeline-wrap{flex:1;overflow-y:auto;padding:1rem;}
+.compas-row{display:flex;align-items:stretch;gap:0.5rem;margin-bottom:0.6rem;}
+.compas-num{font-size:0.68rem;color:var(--muted);width:20px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);flex-shrink:0;font-weight:700;}
+.compas-cells{display:flex;gap:3px;flex:1;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:5px;min-height:62px;align-items:center;overflow-x:auto;box-shadow:inset 0 1px 3px rgba(0,0,0,0.06);}
+.beat-group{display:flex;gap:2px;align-items:center;flex:1;justify-content:center;padding:0 3px;border-right:1.5px dashed var(--border);min-height:52px;flex-shrink:0;}
+.beat-group:last-child{border-right:none;}
+.note-cell{border-radius:6px;cursor:pointer;transition:all 0.15s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;position:relative;flex-shrink:0;border:1.5px solid rgba(0,0,0,0.12);}
+.note-cell:hover{filter:brightness(0.9);transform:scale(1.06);}
+.note-cell .cell-label{font-size:0.62rem;font-weight:800;font-family:var(--mono);text-align:center;color:rgba(0,0,0,0.8);line-height:1;pointer-events:none;}
+.note-cell .cell-alt{font-size:0.7rem;font-weight:900;pointer-events:none;color:rgba(0,0,0,0.75);}
+.note-cell .cell-dur{font-size:0.52rem;color:rgba(0,0,0,0.5);pointer-events:none;}
+.note-cell.rest-cell{background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);}
+.note-cell.empty-slot{background:rgba(0,0,0,0.03);border:1.5px dashed var(--border);}
+.note-cell.empty-slot:hover{background:var(--accent-bg);border-color:var(--accent);}
+.compas-del{background:none;border:1.5px solid transparent;color:var(--muted);cursor:pointer;border-radius:6px;padding:0 0.3rem;font-size:0.85rem;align-self:center;transition:all 0.15s;flex-shrink:0;}
+.compas-del:hover{border-color:#c62828;color:#c62828;}
+.add-compas-btn{width:100%;background:var(--surface);border:2px dashed var(--border);color:var(--muted);border-radius:var(--radius);padding:0.85rem;cursor:pointer;font-family:var(--font);font-size:0.95rem;font-weight:700;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-top:0.5rem;}
+.add-compas-btn:hover{border-color:var(--accent);color:var(--accent);}
+.info-msg{background:var(--accent-bg);border:1.5px solid rgba(91,79,207,0.3);border-radius:var(--radius-sm);padding:0.45rem 1rem;font-size:0.82rem;color:var(--accent);margin:0.4rem 1rem;font-weight:600;}
+.import-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--text-light);border-radius:var(--radius-sm);padding:0.45rem 0.75rem;cursor:pointer;font-family:var(--font);font-size:0.85rem;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:0.4rem;}
+.import-btn:hover{border-color:var(--accent);color:var(--accent);}
+#xml-file-input{display:none;}
+.mode-selector{padding:0.6rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);display:flex;gap:0.4rem;flex-wrap:wrap;box-shadow:var(--shadow);}
+.mode-btn{flex:1;min-width:110px;background:var(--surface2);border:1.5px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:0.45rem 0.4rem;cursor:pointer;font-family:var(--font);font-size:0.76rem;font-weight:700;text-align:center;transition:all 0.2s;}
+.mode-btn:hover{border-color:var(--accent);color:var(--text);}
+.mode-btn.active{background:var(--accent);border-color:var(--accent);color:white;}
+.instrument-bar{display:flex;gap:0.4rem;padding:0.45rem 1rem;background:var(--surface2);border-bottom:1.5px solid var(--border);align-items:center;flex-wrap:wrap;}
+.instrument-label{font-size:0.72rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:0.05em;}
+.inst-btn{background:var(--surface);border:1.5px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:0.3rem 0.7rem;cursor:pointer;font-family:var(--font);font-size:0.8rem;font-weight:700;transition:all 0.2s;}
+.inst-btn:hover{border-color:var(--accent);color:var(--text);}
+.inst-btn.active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+.viewer-wrap{flex:1;overflow-y:auto;padding:1rem;}
+.viewer-compas{margin-bottom:0.85rem;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);}
+.viewer-compas-header{padding:0.3rem 0.75rem;font-size:0.7rem;color:var(--muted);font-family:var(--mono);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;font-weight:700;}
+.viewer-cells{display:flex;padding:8px;gap:5px;flex-wrap:wrap;align-items:center;min-height:68px;}
+.viewer-beat-sep{width:1.5px;height:40px;background:var(--border);flex-shrink:0;align-self:center;}
+.vnote{border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:default;position:relative;transition:transform 0.1s;border:1.5px solid rgba(0,0,0,0.12);}
+.vnote.active-note{box-shadow:0 0 0 3px var(--accent),0 0 16px rgba(91,79,207,0.4);transform:scale(1.12);z-index:2;}
+.vnote-name{font-weight:900;line-height:1;font-family:var(--font);}
+.vnote-alt{font-size:0.72rem;font-weight:900;opacity:0.85;}
+.vnote-dur{font-size:0.55rem;opacity:0.65;font-family:var(--mono);}
+.vnote-rest{background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;}
+.staff-wrap{background:white;border-radius:var(--radius-sm);padding:6px 4px;margin:4px 6px 8px;overflow-x:auto;border:1px solid var(--border);}
+.practice-bar{padding:0.7rem 1rem;background:var(--surface);border-top:2px solid var(--border);display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;box-shadow:0 -2px 8px rgba(0,0,0,0.07);}
+.bpm-control{display:flex;align-items:center;gap:0.5rem;flex:1;}
+.bpm-control input[type="range"]{flex:1;accent-color:var(--accent);}
+.bpm-display{font-family:var(--mono);font-size:0.85rem;min-width:58px;color:var(--text);font-weight:700;}
+.play-btn{background:var(--accent);border:none;color:white;border-radius:50%;width:46px;height:46px;font-size:1.2rem;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(91,79,207,0.35);flex-shrink:0;}
+.play-btn:hover{transform:scale(1.08);}
+.sound-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:0.35rem 0.7rem;cursor:pointer;font-family:var(--font);font-size:0.8rem;font-weight:700;transition:all 0.2s;}
+.sound-btn.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:center;justify-content:center;padding:1rem;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:2px solid var(--border);border-radius:var(--radius);padding:1.5rem;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.15);}
+.modal h3{font-size:1.1rem;font-weight:800;margin-bottom:1rem;}
+.modal-actions{display:flex;gap:0.5rem;margin-top:1.25rem;justify-content:flex-end;}
+.btn-secondary{background:none;border:1.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:0.5rem 1rem;cursor:pointer;font-family:var(--font);font-size:0.9rem;font-weight:600;transition:all 0.2s;}
+.btn-secondary:hover{border-color:var(--accent);}
+.btn-danger{background:#c62828;border:none;color:white;border-radius:var(--radius-sm);padding:0.5rem 1rem;cursor:pointer;font-family:var(--font);font-size:0.9rem;font-weight:700;}
+.toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--text);color:var(--bg);padding:0.6rem 1.4rem;border-radius:40px;font-size:0.9rem;font-weight:600;z-index:300;transition:transform 0.3s;white-space:nowrap;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+@media(max-width:600px){.home-logo h1{font-size:2.2rem;}.note-btn{padding:0.25rem 0.3rem;min-width:28px;}.fig-btn{padding:0.25rem 0.45rem;font-size:0.75rem;}}
 </style>
 </head>
 <body>
-
 <div id="screen-home" class="screen active">
-  <div class="home-logo">
-    <span class="sax-icon">🎷</span>
-    <h1>SaxoApp</h1>
-    <p>Partituras visuales de saxofón</p>
-  </div>
+  <div class="home-logo"><span class="sax-icon">🎷</span><h1>SaxoApp</h1><p>Partituras visuales de saxofón</p></div>
   <div class="home-cards">
-    <div class="home-card teacher" onclick="goTo('teacher-list')">
-      <span class="icon">👩‍🏫</span>
-      <h2>Profesor</h2>
-      <p>Crear y gestionar partituras</p>
-    </div>
-    <div class="home-card student" onclick="goTo('student-list')">
-      <span class="icon">🎓</span>
-      <h2>Alumno</h2>
-      <p>Ver y practicar partituras</p>
-    </div>
+    <div class="home-card teacher" onclick="goTo('teacher-list')"><span class="icon">👩‍🏫</span><h2>Profesor</h2><p>Crear y gestionar partituras</p></div>
+    <div class="home-card student" onclick="goTo('student-list')"><span class="icon">🎓</span><h2>Alumno</h2><p>Ver y practicar partituras</p></div>
   </div>
 </div>
-
 <div id="screen-teacher-list" class="screen">
-  <div class="topbar">
-    <button class="topbar-back" onclick="goTo('home')">← Inicio</button>
-    <h2>👩‍🏫 Mis Partituras</h2>
-  </div>
-  <div class="list-body" id="teacher-list-body">
-    <div class="list-empty"><span class="icon">🎼</span><p>No hay partituras todavía.<br>¡Crea la primera!</p></div>
-  </div>
+  <div class="topbar"><button class="topbar-back" onclick="goTo('home')">← Inicio</button><h2>👩‍🏫 Mis Partituras</h2></div>
+  <div class="list-body" id="teacher-list-body"><div class="list-empty"><span class="icon">🎼</span><p>No hay partituras todavía.<br>Pulsa + para crear una.</p></div></div>
   <button class="fab" onclick="newPartitura()">+</button>
 </div>
-
 <div id="screen-teacher-editor" class="screen">
-  <div class="topbar">
-    <button class="topbar-back" onclick="goTo('teacher-list')">← Lista</button>
-    <h2 id="editor-title-bar">Nueva partitura</h2>
-    <button class="topbar-action" onclick="savePartitura()">Guardar</button>
-  </div>
+  <div class="topbar"><button class="topbar-back" onclick="goTo('teacher-list')">← Lista</button><h2 id="editor-title-bar">Nueva partitura</h2><button class="topbar-action" onclick="savePartitura()">Guardar</button></div>
   <div class="editor-config">
     <input type="text" id="ed-titulo" placeholder="Título de la partitura...">
     <select id="ed-compas" onchange="onCompasChange()">
-      <option value="2/4">2/4</option>
-      <option value="3/4">3/4</option>
-      <option value="4/4" selected>4/4</option>
-      <option value="6/8">6/8</option>
-      <option value="9/8">9/8</option>
-      <option value="12/8">12/8</option>
+      <option value="2/4">2/4</option><option value="3/4">3/4</option><option value="4/4" selected>4/4</option>
+      <option value="6/8">6/8</option><option value="9/8">9/8</option><option value="12/8">12/8</option>
     </select>
+    <select id="ed-instrument">
+      <option value="alto">🎷 Alto</option><option value="tenor">🎷 Tenor</option>
+      <option value="soprano">🎷 Soprano</option><option value="baritono">🎷 Barítono</option>
+    </select>
+    <label class="import-btn">📄 Importar XML<input type="file" id="xml-file-input" accept=".xml,.musicxml" onchange="importMusicXML(event)"></label>
   </div>
   <div class="legend-bar">
     <span class="legend-item"><span class="legend-dot" style="background:var(--do)"></span>Do</span>
@@ -250,38 +187,34 @@
     <span class="legend-item"><span class="legend-dot" style="background:var(--si)"></span>Si</span>
   </div>
   <div class="note-palette" id="note-palette"></div>
-  <div class="figure-palette">
-    <span class="figure-label">Figura:</span>
-    <div id="fig-buttons"></div>
+  <div class="alt-row">
+    <span class="alt-label">Alteración:</span>
+    <button class="alt-btn sel-none" id="alt-none" onclick="setAlt(null)">♮ Natural</button>
+    <button class="alt-btn" id="alt-sharp" onclick="setAlt('sharp')">♯ Sostenido</button>
+    <button class="alt-btn" id="alt-flat" onclick="setAlt('flat')">♭ Bemol</button>
   </div>
-  <div class="info-msg" id="ed-info">Selecciona una nota o silencio, luego toca una celda vacía para añadirla. Toca una nota para eliminarla.</div>
-  <div class="editor-timeline-wrap">
-    <div id="editor-timeline"></div>
-    <button class="add-compas-btn" onclick="addCompas()">＋ Añadir compás</button>
-    <div style="height:1rem"></div>
-  </div>
+  <div class="figure-palette"><span class="figure-label">Figura:</span><div id="fig-buttons"></div></div>
+  <div class="info-msg">Selecciona nota → figura → toca celda vacía para añadir. Toca una nota colocada para quitarla.</div>
+  <div class="editor-timeline-wrap"><div id="editor-timeline"></div><button class="add-compas-btn" onclick="addCompas()">＋ Añadir compás</button><div style="height:1.5rem"></div></div>
 </div>
-
 <div id="screen-student-list" class="screen">
-  <div class="topbar">
-    <button class="topbar-back" onclick="goTo('home')">← Inicio</button>
-    <h2>🎓 Partituras</h2>
+  <div class="topbar"><button class="topbar-back" onclick="goTo('home')">← Inicio</button><h2>🎓 Partituras</h2></div>
+  <div class="instrument-bar">
+    <span class="instrument-label">Mi instrumento:</span>
+    <button class="inst-btn active" id="sinst-alto" onclick="setStudentInstrument('alto')">🎷 Alto</button>
+    <button class="inst-btn" id="sinst-tenor" onclick="setStudentInstrument('tenor')">🎷 Tenor</button>
+    <button class="inst-btn" id="sinst-soprano" onclick="setStudentInstrument('soprano')">🎷 Soprano</button>
+    <button class="inst-btn" id="sinst-baritono" onclick="setStudentInstrument('baritono')">🎷 Barítono</button>
   </div>
-  <div class="list-body" id="student-list-body">
-    <div class="list-empty"><span class="icon">🎼</span><p>No hay partituras disponibles todavía.</p></div>
-  </div>
+  <div class="list-body" id="student-list-body"><div class="list-empty"><span class="icon">🎼</span><p>No hay partituras disponibles todavía.</p></div></div>
 </div>
-
 <div id="screen-student-view" class="screen">
-  <div class="topbar">
-    <button class="topbar-back" onclick="stopPlayback(); goTo('student-list')">← Volver</button>
-    <h2 id="viewer-title">Partitura</h2>
-  </div>
+  <div class="topbar"><button class="topbar-back" onclick="stopPlayback();goTo('student-list')">← Volver</button><h2 id="viewer-title">Partitura</h2></div>
   <div class="mode-selector">
     <button class="mode-btn active" id="mode-btn-0" onclick="setMode(0)">🎨 Solo colores</button>
-    <button class="mode-btn" id="mode-btn-1" onclick="setMode(1)">🔤 Colores + letras</button>
-    <button class="mode-btn" id="mode-btn-2" onclick="setMode(2)">⚡ Vista paralela</button>
-    <button class="mode-btn" id="mode-btn-3" onclick="setMode(3)">🎵 Solo pentagrama</button>
+    <button class="mode-btn" id="mode-btn-1" onclick="setMode(1)">🔤 Colores+letras</button>
+    <button class="mode-btn" id="mode-btn-2" onclick="setMode(2)">⚡ Paralela</button>
+    <button class="mode-btn" id="mode-btn-3" onclick="setMode(3)">🎵 Pentagrama</button>
   </div>
   <div class="legend-bar" id="viewer-legend">
     <span class="legend-item"><span class="legend-dot" style="background:var(--do)"></span>Do</span>
@@ -295,14 +228,14 @@
   <div class="viewer-wrap" id="viewer-wrap"></div>
   <div class="practice-bar">
     <div class="bpm-control">
-      <span class="practice-bar-label">BPM</span>
+      <span style="font-size:0.82rem;color:var(--muted);font-weight:700;">BPM</span>
       <input type="range" min="40" max="200" value="80" id="bpm-slider" oninput="updateBPM(this.value)">
       <span class="bpm-display" id="bpm-display">80 BPM</span>
     </div>
+    <button class="sound-btn on" id="sound-toggle" onclick="toggleSound()">🔊 Sonido</button>
     <button class="play-btn" id="play-btn" onclick="togglePlayback()">▶</button>
   </div>
 </div>
-
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal">
     <h3 id="modal-title">¿Eliminar partitura?</h3>
@@ -313,493 +246,459 @@
     </div>
   </div>
 </div>
-
 <div class="toast" id="toast"></div>
-
 <script>
-const NOTE_NAMES = ['Do','Re','Mi','Fa','Sol','La','Si'];
-const NOTE_KEYS  = ['do','re','mi','fa','sol','la','si'];
-const NOTE_COLORS = { do:'#E53935', re:'#F4511E', mi:'#FFB300', fa:'#43A047', sol:'#1E88E5', la:'#8E24AA', si:'#EC407A' };
-const NOTE_TEXT_COLORS = { do:'white', re:'white', mi:'#1a1000', fa:'white', sol:'white', la:'white', si:'white' };
-const OCTAVAS = [
-  { label:'Grave', suffix:'₁', sufix_label:'G' },
-  { label:'Medio', suffix:'₂', sufix_label:'M' },
-  { label:'Agudo', suffix:'₃', sufix_label:'A' },
+const NOTE_NAMES=['Do','Re','Mi','Fa','Sol','La','Si'];
+const NOTE_KEYS=['do','re','mi','fa','sol','la','si'];
+const NOTE_COLORS={do:'#E53935',re:'#E64A19',mi:'#F9A825',fa:'#2E7D32',sol:'#1565C0',la:'#6A1B9A',si:'#AD1457'};
+const NOTE_TEXT={do:'white',re:'white',mi:'#1a1000',fa:'white',sol:'white',la:'white',si:'white'};
+const OCTAVAS=[{label:'Grave',suffix:'₁',sl:'G'},{label:'Medio',suffix:'₂',sl:'M'},{label:'Agudo',suffix:'₃',sl:'A'}];
+const FIGURES=[
+  {id:'redonda',name:'Redonda',glyph:'𝅝',vex:'w',val:16,dot_val:24},
+  {id:'blanca',name:'Blanca',glyph:'𝅗𝅥',vex:'h',val:8,dot_val:12},
+  {id:'negra',name:'Negra',glyph:'♩',vex:'q',val:4,dot_val:6},
+  {id:'corchea',name:'Corchea',glyph:'♪',vex:'8',val:2,dot_val:3},
+  {id:'semicorchea',name:'Semicorchea',glyph:'♬',vex:'16',val:1,dot_val:null},
 ];
-const FIGURES = [
-  { id:'redonda',     name:'Redonda',     glyph:'𝅝', val:16, dot_val:24 },
-  { id:'blanca',      name:'Blanca',      glyph:'𝅗𝅥', val:8,  dot_val:12 },
-  { id:'negra',       name:'Negra',       glyph:'♩', val:4,  dot_val:6  },
-  { id:'corchea',     name:'Corchea',     glyph:'♪', val:2,  dot_val:3  },
-  { id:'semicorchea', name:'Semicorchea', glyph:'♬', val:1,  dot_val:null },
-];
-const COMPAS_BEATS  = { '2/4':8, '3/4':12, '4/4':16, '6/8':12, '9/8':18, '12/8':24 };
-const COMPAS_GROUPS = { '2/4':2, '3/4':3,  '4/4':4,  '6/8':2,  '9/8':3,  '12/8':4  };
+const COMPAS_BEATS={'2/4':8,'3/4':12,'4/4':16,'6/8':12,'9/8':18,'12/8':24};
+const COMPAS_GROUPS={'2/4':2,'3/4':3,'4/4':4,'6/8':2,'9/8':3,'12/8':4};
+const INSTRUMENT_NAMES={alto:'Alto',tenor:'Tenor',soprano:'Soprano',baritono:'Barítono'};
+const BASE_FREQ={'do-0':261.63,'re-0':293.66,'mi-0':329.63,'fa-0':349.23,'sol-0':392.00,'la-0':440.00,'si-0':493.88,'do-1':523.25,'re-1':587.33,'mi-1':659.25,'fa-1':698.46,'sol-1':783.99,'la-1':880.00,'si-1':987.77,'do-2':1046.50,'re-2':1174.66,'mi-2':1318.51,'fa-2':1396.91,'sol-2':1567.98,'la-2':1760.00,'si-2':1975.53};
+const VEX_NOTE_MAP={do:'c',re:'d',mi:'e',fa:'f',sol:'g',la:'a',si:'b'};
 
-const STAFF_POSITIONS = {
-  'do-0':-2,'re-0':-1,'mi-0':0,'fa-0':1,'sol-0':2,'la-0':3,'si-0':4,
-  'do-1':5,'re-1':6,'mi-1':7,'fa-1':8,'sol-1':9,'la-1':10,'si-1':11,
-  'do-2':12,'re-2':13,'mi-2':14,'fa-2':15,'sol-2':16,
+let state={
+  screen:'home',
+  editor:{id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null},
+  student:{current:null,mode:0,bpm:80,instrument:'alto',playing:false,playTimer:null,playPos:null,soundOn:true}
 };
+let audioCtx=null;
+function getAudioCtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
 
-let state = {
-  screen: 'home',
-  editor: { id:null, titulo:'', compas:'4/4', compases:[], selectedNote:null, selectedFig:'negra', selectedDot:false },
-  student: { current:null, mode:0, bpm:80, playing:false, playTimer:null, playPos:null }
-};
-
-function goTo(screen) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('screen-' + screen).classList.add('active');
-  state.screen = screen;
-  if (screen === 'teacher-list') loadTeacherList();
-  if (screen === 'student-list') loadStudentList();
+function goTo(screen){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+screen).classList.add('active');
+  state.screen=screen;
+  if(screen==='teacher-list')loadTeacherList();
+  if(screen==='student-list')loadStudentList();
 }
 
 let toastTimer;
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2400);}
+function openModal(title,msg,onConfirm){document.getElementById('modal-title').textContent=title;document.getElementById('modal-msg').textContent=msg;document.getElementById('modal-confirm-btn').onclick=()=>{closeModal();onConfirm();};document.getElementById('modal-overlay').classList.add('open');}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');}
+
+async function apiGet(p){const r=await fetch(p);return r.json();}
+async function apiPost(p,d){const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});return r.json();}
+async function apiPut(p,d){const r=await fetch(p,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});return r.json();}
+async function apiDel(p){const r=await fetch(p,{method:'DELETE'});return r.json();}
+
+async function loadTeacherList(){
+  const lista=await apiGet('/api/partituras');
+  const body=document.getElementById('teacher-list-body');
+  if(!lista.length){body.innerHTML='<div class="list-empty"><span class="icon">🎼</span><p>No hay partituras todavía.<br>Pulsa + para crear la primera.</p></div>';return;}
+  body.innerHTML=lista.map(p=>`<div class="partitura-card" onclick="editPartitura('${p.id}')">
+    <div style="font-size:1.8rem">🎼</div>
+    <div class="partitura-card-info"><h3>${escHtml(p.titulo||'Sin título')}</h3><p>${p.compas} · ${INSTRUMENT_NAMES[p.instrument]||'Alto'} · ${p.numCompases} compás · ${formatDate(p.creadaEn)}</p></div>
+    <span class="partitura-card-badge">${p.compas}</span>
+    <button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:0.3rem 0.5rem;" onclick="event.stopPropagation();confirmDelete('${p.id}','${escHtml(p.titulo||'Sin título')}')">🗑</button>
+  </div>`).join('');
 }
 
-function openModal(title, msg, onConfirm) {
-  document.getElementById('modal-title').textContent = title;
-  document.getElementById('modal-msg').textContent = msg;
-  document.getElementById('modal-confirm-btn').onclick = () => { closeModal(); onConfirm(); };
-  document.getElementById('modal-overlay').classList.add('open');
-}
-function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function confirmDelete(id,titulo){openModal('Eliminar partitura',`¿Eliminar "${titulo}"? Esta acción no se puede deshacer.`,async()=>{await apiDel('/api/partituras/'+id);showToast('Partitura eliminada');loadTeacherList();});}
 
-async function apiGet(path) { const r = await fetch(path); return r.json(); }
-async function apiPost(path, data) { const r = await fetch(path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }); return r.json(); }
-async function apiPut(path, data) { const r = await fetch(path, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }); return r.json(); }
-async function apiDel(path) { const r = await fetch(path, { method:'DELETE' }); return r.json(); }
-
-async function loadTeacherList() {
-  const lista = await apiGet('/api/partituras');
-  const body = document.getElementById('teacher-list-body');
-  if (!lista.length) { body.innerHTML = '<div class="list-empty"><span class="icon">🎼</span><p>No hay partituras todavía.<br>¡Crea la primera pulsando +!</p></div>'; return; }
-  body.innerHTML = lista.map(p => `
-    <div class="partitura-card" onclick="editPartitura('${p.id}')">
-      <div style="font-size:1.8rem">🎼</div>
-      <div class="partitura-card-info">
-        <h3>${escHtml(p.titulo||'Sin título')}</h3>
-        <p>${p.compas} · ${p.numCompases} compás · ${formatDate(p.creadaEn)}</p>
-      </div>
-      <span class="partitura-card-badge">${p.compas}</span>
-      <button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:0.3rem 0.5rem;"
-        onclick="event.stopPropagation();confirmDelete('${p.id}','${escHtml(p.titulo||'Sin título')}')">🗑</button>
-    </div>`).join('');
+function newPartitura(){
+  state.editor={id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
+  renderEditorUI();addCompas();goTo('teacher-editor');
 }
 
-function confirmDelete(id, titulo) {
-  openModal('Eliminar partitura', `¿Eliminar "${titulo}"? No se puede deshacer.`, async () => {
-    await apiDel('/api/partituras/' + id);
-    showToast('Partitura eliminada');
-    loadTeacherList();
-  });
+async function editPartitura(id){
+  const p=await apiGet('/api/partituras/'+id);
+  state.editor={id:p.id,titulo:p.titulo||'',compas:p.compas||'4/4',instrument:p.instrument||'alto',compases:p.compases||[],selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
+  renderEditorUI();renderTimeline();goTo('teacher-editor');
 }
 
-function newPartitura() {
-  state.editor = { id:null, titulo:'', compas:'4/4', compases:[], selectedNote:null, selectedFig:'negra', selectedDot:false };
-  renderEditorUI();
-  addCompas();
-  goTo('teacher-editor');
+function renderEditorUI(){
+  document.getElementById('ed-titulo').value=state.editor.titulo;
+  document.getElementById('ed-compas').value=state.editor.compas;
+  document.getElementById('ed-instrument').value=state.editor.instrument;
+  document.getElementById('editor-title-bar').textContent=state.editor.id?'Editar partitura':'Nueva partitura';
+  renderNotePalette();renderAltButtons();renderFigurePalette();
 }
 
-async function editPartitura(id) {
-  const p = await apiGet('/api/partituras/' + id);
-  state.editor = { id:p.id, titulo:p.titulo||'', compas:p.compas||'4/4', compases:p.compases||[], selectedNote:null, selectedFig:'negra', selectedDot:false };
-  renderEditorUI();
-  renderTimeline();
-  goTo('teacher-editor');
-}
-
-function renderEditorUI() {
-  document.getElementById('ed-titulo').value = state.editor.titulo;
-  document.getElementById('ed-compas').value = state.editor.compas;
-  document.getElementById('editor-title-bar').textContent = state.editor.id ? 'Editar partitura' : 'Nueva partitura';
-  renderNotePalette();
-  renderFigurePalette();
-}
-
-function onCompasChange() {
-  state.editor.compas = document.getElementById('ed-compas').value;
-  state.editor.compases = state.editor.compases.map(c => ({ notas: padOrTrunc(c.notas, COMPAS_BEATS[state.editor.compas]) }));
+function onCompasChange(){
+  state.editor.compas=document.getElementById('ed-compas').value;
+  state.editor.compases=state.editor.compases.map(c=>({notas:padOrTrunc(c.notas,COMPAS_BEATS[state.editor.compas])}));
   renderTimeline();
 }
 
-function padOrTrunc(arr, len) {
-  const copy = arr.slice(0, len);
-  while (copy.length < len) copy.push(null);
-  return copy;
-}
+function padOrTrunc(arr,len){const c=arr.slice(0,len);while(c.length<len)c.push(null);return c;}
 
-function renderNotePalette() {
-  const pal = document.getElementById('note-palette');
-  const sel = state.editor.selectedNote;
-  let html = '<div class="palette-section">';
-  const rSel = sel && sel.type === 'rest' ? ' selected' : '';
-  html += `<button class="rest-btn${rSel}" onclick="selectNote({type:'rest'})">Silencio</button>`;
-  html += '<span style="width:1px;height:32px;background:var(--border);margin:0 4px;flex-shrink:0"></span>';
-  OCTAVAS.forEach((oct, oi) => {
-    html += `<span class="palette-label">${oct.sufix_label}</span>`;
-    NOTE_KEYS.forEach((key, ni) => {
-      const isSel = sel && sel.type==='note' && sel.key===key && sel.oct===oi;
-      const tc = NOTE_TEXT_COLORS[key];
-      html += `<button class="note-btn${isSel?' selected':''}" onclick="selectNote({type:'note',key:'${key}',oct:${oi}})" style="background:${NOTE_COLORS[key]};color:${tc}">
-        <span class="note-name">${NOTE_NAMES[ni]}${oct.suffix}</span></button>`;
+function renderNotePalette(){
+  const pal=document.getElementById('note-palette');
+  const sel=state.editor.selectedNote;
+  let html='<div class="palette-row">';
+  html+=`<button class="rest-btn${sel&&sel.type==='rest'?' selected':''}" onclick="selectNote({type:'rest'})">𝄽 Silencio</button>`;
+  html+='<div class="palette-sep"></div>';
+  OCTAVAS.forEach((oct,oi)=>{
+    html+=`<span class="palette-label">${oct.sl}</span>`;
+    NOTE_KEYS.forEach((key,ni)=>{
+      const isSel=sel&&sel.type==='note'&&sel.key===key&&sel.oct===oi;
+      html+=`<button class="note-btn${isSel?' selected':''}" onclick="selectNote({type:'note',key:'${key}',oct:${oi}})" style="background:${NOTE_COLORS[key]};color:${NOTE_TEXT[key]}"><span class="nn">${NOTE_NAMES[ni]}</span><span class="na">${oct.suffix}</span></button>`;
     });
-    if (oi < 2) html += '<span style="width:1px;height:32px;background:var(--border);margin:0 4px;flex-shrink:0"></span>';
+    if(oi<2)html+='<div class="palette-sep"></div>';
   });
-  html += '</div>';
-  pal.innerHTML = html;
+  html+='</div>';pal.innerHTML=html;
 }
 
-function selectNote(note) { state.editor.selectedNote = note; renderNotePalette(); }
-
-function renderFigurePalette() {
-  const container = document.getElementById('fig-buttons');
-  const selFig = state.editor.selectedFig;
-  const selDot = state.editor.selectedDot;
-  let html = '';
-  FIGURES.forEach(f => {
-    html += `<button class="fig-btn${f.id===selFig?' selected':''}" onclick="selectFig('${f.id}')"><span class="fig-glyph">${f.glyph}</span> ${f.name}</button> `;
-  });
-  const dotFig = FIGURES.find(f => f.id === selFig);
-  const canDot = dotFig && dotFig.dot_val;
-  html += `<button class="fig-btn${selDot?' selected':''}" onclick="toggleDot()" ${canDot?'':'disabled style="opacity:0.3"'}>• Puntillo</button>`;
-  container.innerHTML = html;
+function selectNote(note){state.editor.selectedNote=note;renderNotePalette();}
+function setAlt(alt){state.editor.selectedAlt=alt;renderAltButtons();}
+function renderAltButtons(){
+  const alt=state.editor.selectedAlt;
+  document.getElementById('alt-none').className='alt-btn'+(alt===null?' sel-none':'');
+  document.getElementById('alt-sharp').className='alt-btn'+(alt==='sharp'?' sel-sharp':'');
+  document.getElementById('alt-flat').className='alt-btn'+(alt==='flat'?' sel-flat':'');
 }
 
-function selectFig(id) {
-  state.editor.selectedFig = id;
-  const fig = FIGURES.find(f => f.id === id);
-  if (!fig || !fig.dot_val) state.editor.selectedDot = false;
-  renderFigurePalette();
+function renderFigurePalette(){
+  const selFig=state.editor.selectedFig,selDot=state.editor.selectedDot;
+  let html='';
+  FIGURES.forEach(f=>{html+=`<button class="fig-btn${f.id===selFig?' selected':''}" onclick="selectFig('${f.id}')">${f.glyph} ${f.name}</button> `;});
+  html+='<div class="fig-sep"></div>';
+  const dotFig=FIGURES.find(f=>f.id===selFig),canDot=dotFig&&dotFig.dot_val;
+  html+=`<button class="fig-btn${selDot?' selected':''}" onclick="toggleDot()" ${canDot?'':'disabled style="opacity:0.35"'}>· Puntillo</button>`;
+  document.getElementById('fig-buttons').innerHTML=html;
 }
 
-function toggleDot() {
-  const fig = FIGURES.find(f => f.id === state.editor.selectedFig);
-  if (fig && fig.dot_val) state.editor.selectedDot = !state.editor.selectedDot;
-  renderFigurePalette();
-}
+function selectFig(id){state.editor.selectedFig=id;const fig=FIGURES.find(f=>f.id===id);if(!fig||!fig.dot_val)state.editor.selectedDot=false;renderFigurePalette();}
+function toggleDot(){const fig=FIGURES.find(f=>f.id===state.editor.selectedFig);if(fig&&fig.dot_val)state.editor.selectedDot=!state.editor.selectedDot;renderFigurePalette();}
 
-function addCompas() {
-  const beats = COMPAS_BEATS[state.editor.compas];
-  state.editor.compases.push({ notas: Array(beats).fill(null) });
-  renderTimeline();
-}
+function addCompas(){state.editor.compases.push({notas:Array(COMPAS_BEATS[state.editor.compas]).fill(null)});renderTimeline();}
 
-function renderTimeline() {
-  const container = document.getElementById('editor-timeline');
-  const compas = state.editor.compas;
-  const totalBeats = COMPAS_BEATS[compas];
-  const numGroups = COMPAS_GROUPS[compas];
-  const beatsPerGroup = totalBeats / numGroups;
-  let html = '';
-  state.editor.compases.forEach((c, ci) => {
-    html += `<div class="compas-row"><div class="compas-num">${ci+1}</div><div class="compas-cells">`;
-    for (let gi = 0; gi < numGroups; gi++) {
-      html += `<div class="beat-group">`;
-      for (let bi = 0; bi < beatsPerGroup; bi++) {
-        const ni = gi * beatsPerGroup + bi;
-        const nota = c.notas[ni];
-        if (nota === 'skip') continue;
-        if (nota === null) {
-          const size = 36;
-          html += `<div class="note-cell empty-slot" style="width:${size}px;height:${size}px;" onclick="placeNote(${ci},${ni})"></div>`;
-        } else {
-          html += renderEditorCell(nota, ci, ni);
+function getCellSize(val){return Math.min(34+val*4,90);}
+function altSym(alt){return alt==='sharp'?'♯':alt==='flat'?'♭':'';}
+
+function renderTimeline(){
+  const container=document.getElementById('editor-timeline');
+  const compas=state.editor.compas,totalBeats=COMPAS_BEATS[compas],numGroups=COMPAS_GROUPS[compas],bpg=totalBeats/numGroups;
+  let html='';
+  state.editor.compases.forEach((c,ci)=>{
+    html+=`<div class="compas-row"><div class="compas-num">${ci+1}</div><div class="compas-cells">`;
+    for(let gi=0;gi<numGroups;gi++){
+      html+=`<div class="beat-group">`;
+      for(let bi=0;bi<bpg;bi++){
+        const ni=gi*bpg+bi,nota=c.notas[ni];
+        if(nota==='skip')continue;
+        if(nota===null){html+=`<div class="note-cell empty-slot" style="width:34px;height:46px;" onclick="placeNote(${ci},${ni})"></div>`;}
+        else{
+          const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+          const val=nota.dot&&fig.dot_val?fig.dot_val:fig.val,size=getCellSize(val);
+          if(nota.type==='rest'){
+            html+=`<div class="note-cell rest-cell" style="width:${size}px;height:46px;" onclick="removeNote(${ci},${ni})"><span class="cell-label">𝄽</span><span class="cell-dur">${fig.glyph}${nota.dot?'.':''}</span></div>`;
+          } else {
+            html+=`<div class="note-cell" style="width:${size}px;height:46px;background:${NOTE_COLORS[nota.key]};" onclick="removeNote(${ci},${ni})">
+              <span class="cell-alt" style="color:${NOTE_TEXT[nota.key]}">${altSym(nota.alt)}</span>
+              <span class="cell-label" style="color:${NOTE_TEXT[nota.key]}">${NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]}</span>
+              <span class="cell-dur" style="color:${NOTE_TEXT[nota.key]}">${fig.glyph}${nota.dot?'·':''}${OCTAVAS[nota.oct]?.suffix||''}</span></div>`;
+          }
         }
       }
-      html += `</div>`;
+      html+=`</div>`;
     }
-    html += `</div><button class="compas-del" onclick="deleteCompas(${ci})">✕</button></div>`;
+    html+=`</div><button class="compas-del" onclick="deleteCompas(${ci})">✕</button></div>`;
   });
-  container.innerHTML = html;
+  container.innerHTML=html;
 }
 
-function getCellSize(val16ths) { return Math.min(36 + val16ths * 4, 88); }
-
-function renderEditorCell(nota, ci, ni) {
-  if (!nota || nota === 'skip') return '';
-  const fig = FIGURES.find(f => f.id === nota.fig) || FIGURES[2];
-  const val = nota.dot && fig.dot_val ? fig.dot_val : fig.val;
-  const size = getCellSize(val);
-  if (nota.type === 'rest') {
-    return `<div class="note-cell rest-cell" style="width:${size}px;height:${size}px;" onclick="removeNote(${ci},${ni})">
-      <span class="cell-label">𝄽</span><span class="cell-dur">${fig.name.substring(0,3)}${nota.dot?'.':''}</span></div>`;
-  }
-  const color = NOTE_COLORS[nota.key] || '#888';
-  const tc = NOTE_TEXT_COLORS[nota.key] || 'white';
-  const octSuf = OCTAVAS[nota.oct]?.suffix || '';
-  return `<div class="note-cell" style="width:${size}px;height:${size}px;background:${color};" onclick="removeNote(${ci},${ni})">
-    <span class="cell-label" style="color:${tc}">${NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]}</span>
-    <span class="cell-dur" style="color:${tc}">${fig.glyph}${nota.dot?'·':''}${octSuf}</span></div>`;
-}
-
-function placeNote(ci, ni) {
-  const sel = state.editor.selectedNote;
-  if (!sel) { showToast('Selecciona primero una nota o silencio'); return; }
-  const fig = FIGURES.find(f => f.id === state.editor.selectedFig) || FIGURES[2];
-  const dot = state.editor.selectedDot && !!fig.dot_val;
-  const val = dot ? fig.dot_val : fig.val;
-  const c = state.editor.compases[ci];
-  const totalBeats = COMPAS_BEATS[state.editor.compas];
-  if (ni + val > totalBeats) { showToast('No hay espacio suficiente'); return; }
-  for (let i = ni; i < ni + val; i++) { if (c.notas[i] !== null) { showToast('Hay notas en ese espacio'); return; } }
-  const nota = sel.type === 'rest'
-    ? { type:'rest', fig:fig.id, dot }
-    : { type:'note', key:sel.key, oct:sel.oct, fig:fig.id, dot };
-  c.notas[ni] = nota;
-  for (let i = ni+1; i < ni+val; i++) c.notas[i] = 'skip';
+function placeNote(ci,ni){
+  const sel=state.editor.selectedNote;
+  if(!sel){showToast('Selecciona primero una nota o silencio');return;}
+  const fig=FIGURES.find(f=>f.id===state.editor.selectedFig)||FIGURES[2];
+  const dot=state.editor.selectedDot&&!!fig.dot_val,val=dot?fig.dot_val:fig.val;
+  const c=state.editor.compases[ci],totalBeats=COMPAS_BEATS[state.editor.compas];
+  if(ni+val>totalBeats){showToast('No hay espacio suficiente en este compás');return;}
+  for(let i=ni;i<ni+val;i++){if(c.notas[i]!==null){showToast('Hay notas en ese espacio. Elimínalas primero.');return;}}
+  const nota=sel.type==='rest'?{type:'rest',fig:fig.id,dot}:{type:'note',key:sel.key,oct:sel.oct,fig:fig.id,dot,alt:state.editor.selectedAlt};
+  c.notas[ni]=nota;for(let i=ni+1;i<ni+val;i++)c.notas[i]='skip';
   renderTimeline();
 }
 
-function removeNote(ci, ni) {
-  const c = state.editor.compases[ci];
-  const nota = c.notas[ni];
-  if (!nota || nota === 'skip') return;
-  const fig = FIGURES.find(f => f.id === nota.fig) || FIGURES[2];
-  const val = nota.dot && fig.dot_val ? fig.dot_val : fig.val;
-  for (let i = ni; i < ni+val; i++) c.notas[i] = null;
-  renderTimeline();
+function removeNote(ci,ni){
+  const c=state.editor.compases[ci],nota=c.notas[ni];
+  if(!nota||nota==='skip')return;
+  const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+  const val=nota.dot&&fig.dot_val?fig.dot_val:fig.val;
+  for(let i=ni;i<ni+val;i++)c.notas[i]=null;renderTimeline();
 }
 
-function deleteCompas(ci) { state.editor.compases.splice(ci, 1); renderTimeline(); }
+function deleteCompas(ci){state.editor.compases.splice(ci,1);renderTimeline();}
 
-async function savePartitura() {
-  const titulo = document.getElementById('ed-titulo').value.trim();
-  if (!titulo) { showToast('Escribe un título'); return; }
-  const data = { titulo, compas: state.editor.compas, compases: state.editor.compases };
-  try {
-    if (state.editor.id) {
-      await apiPut('/api/partituras/' + state.editor.id, data);
-      showToast('✓ Partitura actualizada');
-    } else {
-      const res = await apiPost('/api/partituras', data);
-      state.editor.id = res.id;
-      showToast('✓ Partitura guardada');
-    }
-  } catch(e) { showToast('Error al guardar'); }
+async function savePartitura(){
+  const titulo=document.getElementById('ed-titulo').value.trim();
+  if(!titulo){showToast('Escribe un título para la partitura');return;}
+  const data={titulo,compas:state.editor.compas,instrument:document.getElementById('ed-instrument').value,compases:state.editor.compases};
+  try{
+    if(state.editor.id){await apiPut('/api/partituras/'+state.editor.id,data);showToast('✓ Partitura actualizada');}
+    else{const res=await apiPost('/api/partituras',data);state.editor.id=res.id;showToast('✓ Partitura guardada');}
+  }catch(e){showToast('Error al guardar');}
 }
 
-async function loadStudentList() {
-  const lista = await apiGet('/api/partituras');
-  const body = document.getElementById('student-list-body');
-  if (!lista.length) { body.innerHTML = '<div class="list-empty"><span class="icon">🎼</span><p>No hay partituras disponibles todavía.</p></div>'; return; }
-  body.innerHTML = lista.map(p => `
-    <div class="partitura-card" onclick="openPartitura('${p.id}')">
-      <div style="font-size:1.8rem">🎵</div>
-      <div class="partitura-card-info">
-        <h3>${escHtml(p.titulo||'Sin título')}</h3>
-        <p>${p.compas} · ${p.numCompases} compás</p>
-      </div>
-      <div>→</div>
-    </div>`).join('');
+function importMusicXML(event){
+  const file=event.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{const parser=new DOMParser();parseMusicXML(parser.parseFromString(e.target.result,'text/xml'));}
+    catch(err){showToast('Error al leer el archivo XML');}
+  };
+  reader.readAsText(file);event.target.value='';
 }
 
-async function openPartitura(id) {
-  const p = await apiGet('/api/partituras/' + id);
-  state.student.current = p;
-  state.student.mode = 0;
-  state.student.playing = false;
-  state.student.playPos = null;
-  document.getElementById('viewer-title').textContent = p.titulo || 'Partitura';
-  document.getElementById('bpm-slider').value = state.student.bpm;
-  document.getElementById('bpm-display').textContent = state.student.bpm + ' BPM';
-  setMode(0);
-  goTo('student-view');
+function parseMusicXML(xml){
+  const measures=xml.querySelectorAll('measure');
+  if(!measures.length){showToast('No se encontraron compases en el XML');return;}
+  let num=4,den=4;
+  const timeSig=xml.querySelector('time');
+  if(timeSig){num=parseInt(timeSig.querySelector('beats')?.textContent||'4');den=parseInt(timeSig.querySelector('beat-type')?.textContent||'4');}
+  const compasKey=`${num}/${den}`;
+  const compas=['2/4','3/4','4/4','6/8','9/8','12/8'].includes(compasKey)?compasKey:'4/4';
+  const NOTE_MAP_XML={C:'do',D:'re',E:'mi',F:'fa',G:'sol',A:'la',B:'si'};
+  const totalBeats=COMPAS_BEATS[compas];
+  const newCompases=[];
+  const divs=parseInt(xml.querySelector('divisions')?.textContent||'1');
+  measures.forEach(measure=>{
+    const notas=Array(totalBeats).fill(null);let pos=0;
+    measure.querySelectorAll('note').forEach(noteEl=>{
+      const durVal=parseInt(noteEl.querySelector('duration')?.textContent||'1');
+      const quarters=durVal/divs;
+      const sixteenths=Math.max(1,Math.round(quarters*4));
+      if(noteEl.querySelector('rest')){
+        if(pos+sixteenths<=totalBeats){notas[pos]={type:'rest',fig:durToFig(sixteenths),dot:!!noteEl.querySelector('dot')};for(let i=pos+1;i<pos+sixteenths;i++)notas[i]='skip';pos+=sixteenths;}
+        return;
+      }
+      const step=noteEl.querySelector('step')?.textContent||'C';
+      const xmlOct=parseInt(noteEl.querySelector('octave')?.textContent||'4');
+      const alter=noteEl.querySelector('alter');
+      const appOct=Math.max(0,Math.min(2,xmlOct-4));
+      const key=NOTE_MAP_XML[step]||'do';
+      const alt=alter?parseFloat(alter.textContent)>0?'sharp':parseFloat(alter.textContent)<0?'flat':null:null;
+      if(pos+sixteenths<=totalBeats){
+        notas[pos]={type:'note',key,oct:appOct,fig:durToFig(sixteenths),dot:!!noteEl.querySelector('dot'),alt};
+        for(let i=pos+1;i<pos+sixteenths;i++)notas[i]='skip';pos+=sixteenths;
+      }
+    });
+    newCompases.push({notas});
+  });
+  state.editor.compas=compas;state.editor.compases=newCompases;
+  document.getElementById('ed-compas').value=compas;renderTimeline();
+  showToast(`✓ Importados ${newCompases.length} compases desde MusicXML`);
 }
 
-function setMode(mode) {
-  stopPlayback();
-  state.student.mode = mode;
-  for (let i = 0; i < 4; i++) document.getElementById('mode-btn-'+i).classList.toggle('active', i===mode);
-  document.getElementById('viewer-legend').style.display = mode===3 ? 'none' : 'flex';
+function durToFig(s){if(s>=16)return 'redonda';if(s>=8)return 'blanca';if(s>=4)return 'negra';if(s>=2)return 'corchea';return 'semicorchea';}
+
+function setStudentInstrument(inst){
+  state.student.instrument=inst;
+  ['alto','tenor','soprano','baritono'].forEach(i=>document.getElementById('sinst-'+i).classList.toggle('active',i===inst));
+}
+
+async function loadStudentList(){
+  const lista=await apiGet('/api/partituras');
+  const body=document.getElementById('student-list-body');
+  if(!lista.length){body.innerHTML='<div class="list-empty"><span class="icon">🎼</span><p>No hay partituras disponibles todavía.</p></div>';return;}
+  body.innerHTML=lista.map(p=>`<div class="partitura-card" onclick="openPartitura('${p.id}')">
+    <div style="font-size:1.8rem">🎵</div>
+    <div class="partitura-card-info"><h3>${escHtml(p.titulo||'Sin título')}</h3><p>${p.compas} · ${INSTRUMENT_NAMES[p.instrument]||'Alto'} · ${p.numCompases} compás</p></div>
+    <span style="font-size:1.3rem;color:var(--muted)">→</span>
+  </div>`).join('');
+}
+
+async function openPartitura(id){
+  const p=await apiGet('/api/partituras/'+id);
+  state.student.current=p;state.student.mode=0;state.student.playing=false;state.student.playPos=null;
+  document.getElementById('viewer-title').textContent=p.titulo||'Partitura';
+  document.getElementById('bpm-slider').value=state.student.bpm;
+  document.getElementById('bpm-display').textContent=state.student.bpm+' BPM';
+  setMode(0);goTo('student-view');
+}
+
+function setMode(mode){
+  stopPlayback();state.student.mode=mode;
+  for(let i=0;i<4;i++)document.getElementById('mode-btn-'+i).classList.toggle('active',i===mode);
+  document.getElementById('viewer-legend').style.display=mode===3?'none':'flex';
   renderViewer();
 }
 
-function renderViewer() {
-  const p = state.student.current;
-  if (!p || !p.compases || !p.compases.length) {
-    document.getElementById('viewer-wrap').innerHTML = '<p style="color:var(--muted);padding:2rem;text-align:center">Esta partitura no tiene notas.</p>';
-    return;
-  }
-  const mode = state.student.mode;
-  const compas = p.compas || '4/4';
-  const numGroups = COMPAS_GROUPS[compas];
-  const totalBeats = COMPAS_BEATS[compas];
-  const beatsPerGroup = totalBeats / numGroups;
-  let html = '';
-  p.compases.forEach((c, ci) => {
-    html += `<div class="viewer-compas"><div class="viewer-compas-header"><span>Compás ${ci+1}</span><span>${compas}</span></div>`;
-    if (mode === 0 || mode === 1) {
-      html += `<div class="viewer-cells">`;
-      for (let gi = 0; gi < numGroups; gi++) {
-        if (gi > 0) html += '<div class="viewer-beat-sep"></div>';
-        for (let bi = 0; bi < beatsPerGroup; bi++) {
-          const ni = gi*beatsPerGroup+bi;
-          const nota = c.notas[ni];
-          if (nota === 'skip' || nota === null) continue;
-          html += renderViewerNote(nota, mode, ci, ni);
-        }
+function renderViewer(){
+  const p=state.student.current;
+  if(!p||!p.compases||!p.compases.length){document.getElementById('viewer-wrap').innerHTML='<p style="color:var(--muted);padding:2rem;text-align:center">Esta partitura no tiene notas.</p>';return;}
+  const mode=state.student.mode,compas=p.compas||'4/4',numGroups=COMPAS_GROUPS[compas],totalBeats=COMPAS_BEATS[compas],bpg=totalBeats/numGroups;
+  let html='';
+  p.compases.forEach((c,ci)=>{
+    html+=`<div class="viewer-compas"><div class="viewer-compas-header"><span>Compás ${ci+1}</span><span>${compas}</span></div>`;
+    if(mode===0||mode===1){
+      html+=`<div class="viewer-cells">`;
+      for(let gi=0;gi<numGroups;gi++){
+        if(gi>0)html+='<div class="viewer-beat-sep"></div>';
+        for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,mode,ci,ni);}
       }
-      html += '</div>';
-    } else if (mode === 2) {
-      html += `<div class="viewer-cells">`;
-      for (let gi = 0; gi < numGroups; gi++) {
-        if (gi > 0) html += '<div class="viewer-beat-sep"></div>';
-        for (let bi = 0; bi < beatsPerGroup; bi++) {
-          const ni = gi*beatsPerGroup+bi;
-          const nota = c.notas[ni];
-          if (nota === 'skip' || nota === null) continue;
-          html += renderViewerNote(nota, 1, ci, ni);
-        }
+      html+='</div>';
+    } else if(mode===2){
+      html+=`<div class="viewer-cells">`;
+      for(let gi=0;gi<numGroups;gi++){
+        if(gi>0)html+='<div class="viewer-beat-sep"></div>';
+        for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,1,ci,ni);}
       }
-      html += '</div>';
-      html += `<div class="staff-container">${renderStaffSVG(c, compas, ci)}</div>`;
-    } else if (mode === 3) {
-      html += `<div class="staff-container">${renderStaffSVG(c, compas, ci)}</div>`;
+      html+=`</div><div class="staff-wrap" id="staff-${ci}"></div>`;
+    } else if(mode===3){
+      html+=`<div class="staff-wrap" id="staff-${ci}"></div>`;
     }
-    html += '</div>';
+    html+='</div>';
   });
-  document.getElementById('viewer-wrap').innerHTML = html;
+  document.getElementById('viewer-wrap').innerHTML=html;
+  if(mode===2||mode===3){p.compases.forEach((c,ci)=>{const div=document.getElementById('staff-'+ci);if(div)renderVexFlowStaff(c,p.compas||'4/4',div);});}
 }
 
-function renderViewerNote(nota, mode, ci, ni) {
-  if (!nota || nota === 'skip') return '';
-  const fig = FIGURES.find(f => f.id === nota.fig) || FIGURES[2];
-  const dot = nota.dot && fig.dot_val;
-  const val = dot ? fig.dot_val : fig.val;
-  const size = Math.min(36 + val*4, 80);
-  const playActive = state.student.playing && state.student.playPos && state.student.playPos.ci===ci && state.student.playPos.ni===ni;
-  if (nota.type === 'rest') {
+function renderViewerNote(nota,mode,ci,ni){
+  if(!nota||nota==='skip')return '';
+  const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+  const dot=nota.dot&&fig.dot_val,val=dot?fig.dot_val:fig.val,size=Math.min(38+val*4,84);
+  const playActive=state.student.playing&&state.student.playPos&&state.student.playPos.ci===ci&&state.student.playPos.ni===ni;
+  if(nota.type==='rest'){
     return `<div class="vnote vnote-rest${playActive?' active-note':''}" style="width:${size}px;height:${size}px;" id="vn-${ci}-${ni}">
-      ${mode===1?'<span style="font-size:1.1rem">𝄽</span>':''}
-      <span class="vnote-dur">${fig.glyph}${dot?'·':''}</span></div>`;
+      ${mode===1?'<span style="font-size:1.1rem">𝄽</span>':''}<span class="vnote-dur">${fig.glyph}${dot?'·':''}</span></div>`;
   }
-  const color = NOTE_COLORS[nota.key] || '#888';
-  const tc = NOTE_TEXT_COLORS[nota.key] || 'white';
-  const noteName = NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)];
-  const octSuf = OCTAVAS[nota.oct]?.suffix || '';
+  const color=NOTE_COLORS[nota.key]||'#888',tc=NOTE_TEXT[nota.key]||'white';
+  const noteName=NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)],octSuf=OCTAVAS[nota.oct]?.suffix||'';
   return `<div class="vnote${playActive?' active-note':''}" style="width:${size}px;height:${size}px;background:${color};" id="vn-${ci}-${ni}">
-    ${mode===1?`<span class="vnote-name" style="font-size:${size>50?'0.85':'0.7'}rem;color:${tc}">${noteName}</span>`:''}
+    ${mode===1?`<span class="vnote-alt" style="color:${tc}">${altSym(nota.alt)}</span>`:''}
+    ${mode===1?`<span class="vnote-name" style="font-size:${size>52?'0.88':'0.72'}rem;color:${tc}">${noteName}</span>`:''}
     ${mode===1?`<span class="vnote-dur" style="color:${tc}">${fig.glyph}${dot?'·':''}${octSuf}</span>`:''}
-    ${nota.oct>0?`<span style="position:absolute;bottom:3px;right:4px;font-size:0.55rem;color:${tc};opacity:0.7">${octSuf}</span>`:''}
+    ${nota.oct>0&&mode===0?`<span style="position:absolute;bottom:3px;right:4px;font-size:0.52rem;color:${tc};opacity:0.8">${octSuf}</span>`:''}
   </div>`;
 }
 
-function renderStaffSVG(compas_data, compas_sig, ci) {
-  const W=700, H=90, LINE_SPACING=8, STAFF_TOP=22, STAFF_BOTTOM=STAFF_TOP+4*LINE_SPACING;
-  const NOTE_R=5, CLEF_W=30, SIG_W=30, MARGIN=CLEF_W+SIG_W+10;
-  const notas = (compas_data.notas||[]).filter(n => n && n!=='skip');
-  const noteCount = Math.max(notas.length, 1);
-  const noteSpacing = Math.max(30, (W-MARGIN-20)/noteCount);
-  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:${H}px;display:block">`;
-  svg += `<rect width="${W}" height="${H}" fill="white"/>`;
-  for (let l=0; l<5; l++) {
-    const y = STAFF_TOP+l*LINE_SPACING;
-    svg += `<line x1="5" y1="${y}" x2="${W-5}" y2="${y}" stroke="#333" stroke-width="0.8"/>`;
-  }
-  svg += `<text x="8" y="${STAFF_BOTTOM+2}" font-size="42" fill="#333" font-family="serif" dominant-baseline="alphabetic" transform="translate(0,-8)">𝄞</text>`;
-  const [num, den] = compas_sig.split('/');
-  svg += `<text x="${CLEF_W+4}" y="${STAFF_TOP+9}" font-size="11" fill="#333" font-weight="bold" text-anchor="middle">${num}</text>`;
-  svg += `<text x="${CLEF_W+4}" y="${STAFF_TOP+22}" font-size="11" fill="#333" font-weight="bold" text-anchor="middle">${den}</text>`;
-  let xPos = MARGIN;
-  notas.forEach((nota) => {
-    if (!nota || nota==='skip') return;
-    const x = xPos + noteSpacing*0.5;
-    xPos += noteSpacing;
-    if (nota.type==='rest') {
-      svg += `<text x="${x}" y="${STAFF_TOP+2*LINE_SPACING}" text-anchor="middle" font-size="14" fill="#333">𝄼</text>`;
-      return;
-    }
-    const posKey = `${nota.key}-${nota.oct}`;
-    const pos = STAFF_POSITIONS[posKey] ?? 2;
-    const yNote = STAFF_BOTTOM - pos*(LINE_SPACING/2);
-    if (pos<0) { for (let lp=-1; lp>=pos; lp-=2) { const yl=STAFF_BOTTOM-lp*(LINE_SPACING/2); svg+=`<line x1="${x-9}" y1="${yl}" x2="${x+9}" y2="${yl}" stroke="#333" stroke-width="0.8"/>`; } }
-    if (pos>8) { for (let lp=9; lp<=pos; lp+=2) { const yl=STAFF_BOTTOM-lp*(LINE_SPACING/2); svg+=`<line x1="${x-9}" y1="${yl}" x2="${x+9}" y2="${yl}" stroke="#333" stroke-width="0.8"/>`; } }
-    const fillColor = NOTE_COLORS[nota.key]||'#000';
-    const fig = FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-    const isFilled = fig.id!=='redonda' && fig.id!=='blanca';
-    svg += `<ellipse cx="${x}" cy="${yNote}" rx="${NOTE_R+1}" ry="${NOTE_R-1}" fill="${isFilled?fillColor:'white'}" stroke="${fillColor}" stroke-width="1.5"/>`;
-    if (fig.id!=='redonda') {
-      const stemDir = pos>=4?-1:1;
-      const stemX = stemDir<0?x-NOTE_R:x+NOTE_R;
-      const stemY = yNote+stemDir*25;
-      svg += `<line x1="${stemX}" y1="${yNote}" x2="${stemX}" y2="${stemY}" stroke="${fillColor}" stroke-width="1.5"/>`;
-      if (fig.id==='corchea'||fig.id==='semicorchea') {
-        svg += `<path d="M${stemX},${stemY} Q${stemX+8*stemDir},${stemY+10*stemDir} ${stemX+5*stemDir},${stemY+20*stemDir}" fill="none" stroke="${fillColor}" stroke-width="1.5"/>`;
-        if (fig.id==='semicorchea') svg += `<path d="M${stemX},${stemY+6} Q${stemX+8*stemDir},${stemY+16*stemDir} ${stemX+5*stemDir},${stemY+26*stemDir}" fill="none" stroke="${fillColor}" stroke-width="1.5"/>`;
+function renderVexFlowStaff(compasData,compasStr,divEl){
+  divEl.innerHTML='';
+  try{
+    const {Renderer,Stave,StaveNote,Voice,Formatter,Accidental,Dot}=Vex.Flow;
+    const notas=(compasData.notas||[]).filter(n=>n&&n!=='skip');
+    if(!notas.length)return;
+    const W=Math.max(340,notas.length*65+120),H=130;
+    const renderer=new Renderer(divEl,Renderer.Backends.SVG);
+    renderer.resize(W,H);
+    const ctx=renderer.getContext();
+    const stave=new Stave(10,22,W-20);
+    stave.addClef('treble').addTimeSignature(compasStr);
+    stave.setContext(ctx).draw();
+    const [numStr,denStr]=compasStr.split('/');
+    const totalQuarters=parseInt(numStr)*(4/parseInt(denStr));
+    const vexNotes=notas.map(nota=>{
+      if(nota.type==='rest'){
+        const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+        const sn=new StaveNote({keys:['b/4'],duration:fig.vex+'r'});
+        if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});
+        return sn;
       }
-    }
-    if (nota.dot) svg += `<circle cx="${x+NOTE_R+3}" cy="${yNote-(pos%2===0?2:0)}" r="1.5" fill="${fillColor}"/>`;
-    if (state.student.mode===2||state.student.mode===3) {
-      svg += `<text x="${x}" y="${H-3}" text-anchor="middle" font-size="7" fill="${fillColor}" font-weight="bold" font-family="sans-serif">${NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]}</text>`;
-    }
-  });
-  svg += `<line x1="${W-5}" y1="${STAFF_TOP}" x2="${W-5}" y2="${STAFF_BOTTOM}" stroke="#333" stroke-width="1.5"/>`;
-  svg += '</svg>';
-  return svg;
+      const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+      const vexKey=VEX_NOTE_MAP[nota.key]||'c';
+      const oct=(nota.oct||0)+4;
+      let accStr='';
+      if(nota.alt==='sharp')accStr='#';
+      else if(nota.alt==='flat')accStr='b';
+      const keyStr=`${vexKey}${accStr}/${oct}`;
+      const stemDir=oct>=5?-1:1;
+      const color=NOTE_COLORS[nota.key]||'#000';
+      const sn=new StaveNote({keys:[keyStr],duration:fig.vex,stem_direction:stemDir});
+      sn.setStyle({fillStyle:color,strokeStyle:color});
+      if(nota.alt==='sharp')sn.addModifier(new Accidental('#'));
+      else if(nota.alt==='flat')sn.addModifier(new Accidental('b'));
+      if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});
+      return sn;
+    });
+    const voice=new Voice({num_beats:totalQuarters,beat_value:4});
+    voice.setMode(Voice.Mode.SOFT);
+    voice.addTickables(vexNotes);
+    new Formatter().joinVoices([voice]).format([voice],W-120);
+    voice.draw(ctx,stave);
+  }catch(err){
+    divEl.innerHTML='<p style="color:#aaa;font-size:0.75rem;padding:8px">Error al renderizar el pentagrama</p>';
+    console.error('VexFlow:',err);
+  }
 }
 
-function updateBPM(val) { state.student.bpm=parseInt(val); document.getElementById('bpm-display').textContent=val+' BPM'; }
+function toggleSound(){
+  state.student.soundOn=!state.student.soundOn;
+  const btn=document.getElementById('sound-toggle');
+  btn.textContent=state.student.soundOn?'🔊 Sonido':'🔇 Mudo';
+  btn.classList.toggle('on',state.student.soundOn);
+}
 
-function togglePlayback() { state.student.playing ? stopPlayback() : startPlayback(); }
+function playNoteSound(nota){
+  if(!state.student.soundOn||!nota||nota.type==='rest')return;
+  try{
+    const ctx=getAudioCtx();
+    if(ctx.state==='suspended')ctx.resume();
+    let freq=BASE_FREQ[`${nota.key}-${nota.oct}`]||440;
+    if(nota.alt==='sharp')freq*=Math.pow(2,1/12);
+    if(nota.alt==='flat')freq*=Math.pow(2,-1/12);
+    const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+    const val=(nota.dot&&fig.dot_val)?fig.dot_val:fig.val;
+    const dur=val*(60/state.student.bpm/4)*0.88;
+    const osc=ctx.createOscillator(),gain=ctx.createGain(),filter=ctx.createBiquadFilter();
+    const lfo=ctx.createOscillator(),lfoGain=ctx.createGain();
+    osc.type='sawtooth';osc.frequency.setValueAtTime(freq,ctx.currentTime);
+    lfo.frequency.value=5.5;lfoGain.gain.value=3;lfo.connect(lfoGain);lfoGain.connect(osc.frequency);lfo.start();
+    filter.type='bandpass';filter.frequency.value=freq*2.5;filter.Q.value=1.2;
+    gain.gain.setValueAtTime(0,ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.32,ctx.currentTime+0.04);
+    gain.gain.setValueAtTime(0.26,ctx.currentTime+dur*0.7);
+    gain.gain.linearRampToValueAtTime(0,ctx.currentTime+dur);
+    osc.connect(filter);filter.connect(gain);gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);osc.stop(ctx.currentTime+dur);lfo.stop(ctx.currentTime+dur);
+  }catch(e){}
+}
 
-function startPlayback() {
-  const p = state.student.current;
-  if (!p||!p.compases) return;
-  state.student.playing = true;
-  document.getElementById('play-btn').textContent = '⏹';
-  const seq = [];
-  p.compases.forEach((c,ci) => {
-    (c.notas||[]).forEach((nota,ni) => {
-      if (nota && nota!=='skip') {
-        const fig = FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-        const dot = nota.dot && fig.dot_val;
-        const val = dot?fig.dot_val:fig.val;
-        const ms = val*(60000/state.student.bpm/4);
-        seq.push({ci,ni,dur_ms:ms});
+function updateBPM(val){state.student.bpm=parseInt(val);document.getElementById('bpm-display').textContent=val+' BPM';}
+function togglePlayback(){state.student.playing?stopPlayback():startPlayback();}
+
+function startPlayback(){
+  const p=state.student.current;if(!p||!p.compases)return;
+  state.student.playing=true;document.getElementById('play-btn').textContent='⏹';
+  const seq=[];
+  p.compases.forEach((c,ci)=>{
+    (c.notas||[]).forEach((nota,ni)=>{
+      if(nota&&nota!=='skip'){
+        const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+        const dot=nota.dot&&fig.dot_val,val=dot?fig.dot_val:fig.val;
+        seq.push({ci,ni,nota,dur_ms:val*(60000/state.student.bpm/4)});
       }
     });
   });
   let idx=0;
-  function playNext() {
-    if (!state.student.playing||idx>=seq.length) { stopPlayback(); return; }
+  function playNext(){
+    if(!state.student.playing||idx>=seq.length){stopPlayback();return;}
     const item=seq[idx];
     state.student.playPos={ci:item.ci,ni:item.ni};
-    highlightNote(item.ci,item.ni);
-    idx++;
-    state.student.playTimer=setTimeout(playNext,item.dur_ms);
+    highlightNote(item.ci,item.ni);playNoteSound(item.nota);
+    idx++;state.student.playTimer=setTimeout(playNext,item.dur_ms);
   }
   playNext();
 }
 
-function stopPlayback() {
-  state.student.playing=false;
-  clearTimeout(state.student.playTimer);
-  state.student.playPos=null;
-  const btn=document.getElementById('play-btn');
-  if(btn) btn.textContent='▶';
+function stopPlayback(){
+  state.student.playing=false;clearTimeout(state.student.playTimer);state.student.playPos=null;
+  const btn=document.getElementById('play-btn');if(btn)btn.textContent='▶';
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
 }
 
-function highlightNote(ci,ni) {
+function highlightNote(ci,ni){
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
   const el=document.getElementById(`vn-${ci}-${ni}`);
   if(el){el.classList.add('active-note');el.scrollIntoView({behavior:'smooth',block:'nearest'});}
 }
 
-function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function formatDate(iso) { if(!iso) return ''; return new Date(iso).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}); }
+function escHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function formatDate(iso){if(!iso)return '';return new Date(iso).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'});}
 
-document.addEventListener('DOMContentLoaded', () => { renderNotePalette(); renderFigurePalette(); });
+document.addEventListener('DOMContentLoaded',()=>{renderNotePalette();renderAltButtons();renderFigurePalette();});
 </script>
 </body>
 </html>
