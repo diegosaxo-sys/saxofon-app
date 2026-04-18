@@ -168,9 +168,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .vnote-dur{font-size:0.55rem;opacity:0.65;font-family:var(--mono);}
 .vnote-rest{background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;}
 
-/* STAFF — horizontal scroll, never clips */
-.staff-wrap{background:white;border-radius:var(--radius-sm);margin:4px 6px 8px;border:1px solid var(--border);overflow-x:auto;overflow-y:visible;display:block;-webkit-overflow-scrolling:touch;}
-.staff-wrap svg{display:block;}
+/* STAFF — SVG shown at native pixel size, scrolls horizontally */
+.staff-wrap{background:white;border-radius:var(--radius-sm);margin:4px 6px 8px;border:1px solid var(--border);overflow-x:auto;overflow-y:visible;display:block;-webkit-overflow-scrolling:touch;width:calc(100% - 12px);box-sizing:border-box;}
+.staff-wrap svg{display:block;flex-shrink:0;}
 .svn-ring{transition:opacity 0.08s;}
 .svn-active .svn-ring{opacity:0.2;}
 
@@ -198,9 +198,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .ss-handle{position:absolute;top:-3px;width:6px;height:26px;background:white;border-radius:3px;transform:translateX(-50%);cursor:ew-resize;box-shadow:0 0 6px rgba(0,0,0,0.5);}
 
 /* Staff scroll area */
-.ss-staff-outer{flex:1;position:relative;overflow:hidden;background:white;}
+.ss-staff-outer{flex:1;position:relative;overflow:hidden;background:white;min-height:160px;}
 .ss-cursor-line{position:absolute;top:0;bottom:0;width:3px;background:var(--accent);opacity:0.85;z-index:10;pointer-events:none;box-shadow:0 0 12px rgba(91,79,207,0.6);}
-.ss-staff-scroll{width:100%;height:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;}
+.ss-staff-scroll{width:100%;height:100%;min-height:160px;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;}
 .ss-staff-scroll svg{display:block;}
 
 /* FULL SCORE */
@@ -322,7 +322,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <button class="mode-btn" id="mode-btn-1" onclick="setMode(1)">🔤 Col.+letras</button>
     <button class="mode-btn" id="mode-btn-2" onclick="setMode(2)">⚡ Paralela</button>
     <button class="mode-btn" id="mode-btn-3" onclick="setMode(3)">🎵 Pentagrama</button>
-    <button class="mode-btn" id="mode-btn-4" onclick="setMode(4)">🎹 Simply Sax</button>
+    <button class="mode-btn" id="mode-btn-4" onclick="setMode(4)">🎷 Simply Sax</button>
   </div>
   <div class="layout-bar" id="layout-bar-wrap">
     <span class="layout-label">Compases/línea:</span>
@@ -779,8 +779,11 @@ function renderCompasVex(compasData, compasStr, mode){
     // Fix: keep pixel dimensions exactly as VexFlow set them
     const svgW=parseFloat(svg.getAttribute('width')||W);
     const svgH=parseFloat(svg.getAttribute('height')||H);
-    // Do NOT scale — keep native pixel size, container scrolls
-    svg.style.cssText=`display:block;width:${svgW}px;height:${svgH}px;`;
+    // Keep native pixel size — parent scrolls horizontally to fit
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
+    svg.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
+    svg.style.cssText=`display:block;width:${svgW}px;height:${svgH}px;min-height:${svgH}px;`;
 
     // Get X positions
     const xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
@@ -932,12 +935,12 @@ function openFullScore(){
   const compasStr=p.compas||'4/4';
   p.compases.forEach((c,ci)=>{
     const wrapper=document.createElement('div');
-    wrapper.style.cssText='margin-bottom:8px;border:1px solid #C8BFA8;border-radius:8px;overflow-x:auto;background:white;';
+    wrapper.style.cssText='margin-bottom:8px;border:1px solid #C8BFA8;border-radius:8px;overflow-x:auto;overflow-y:visible;background:white;-webkit-overflow-scrolling:touch;';
     const header=document.createElement('div');
     header.style.cssText='font-size:0.65rem;color:#7A6E5F;font-family:Space Mono,monospace;padding:2px 8px;border-bottom:1px solid #EDE8DC;font-weight:700;';
     header.textContent=`Compás ${ci+1} — ${compasStr}`;
     wrapper.appendChild(header);
-    const svg=renderCompasVex({...c,_ci:ci},compasStr,2);
+    const svg=renderCompasVex({...c,_ci:ci},compasStr,3);
     if(svg){wrapper.appendChild(svg);}
     content.appendChild(wrapper);
   });
@@ -951,7 +954,7 @@ function closeFullScore(){document.getElementById('fullscore-overlay').classList
 const SS={
   notes:[],activeIdx:-1,playing:false,
   loopStart:0,loopEnd:0,loopActive:false,
-  metroOn:true,metroTimer:null,beatCount:0,
+  metroOn:true,metroTimer:null,beatCount:0,nextBeatTime:0,
   timer:null,xPos:[],dragging:null,
 };
 
@@ -1084,7 +1087,9 @@ function ssRenderStaff(p){
 
     const svgW=parseFloat(svg.getAttribute('width')||W);
     const svgH=parseFloat(svg.getAttribute('height')||H);
-    svg.style.cssText=`display:block;width:${svgW}px;height:${svgH}px;`;
+    svg.removeAttribute('width');svg.removeAttribute('height');
+    svg.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
+    svg.style.cssText=`display:block;width:${svgW}px;height:${svgH}px;min-height:${svgH}px;`;
 
     // Get xPos for scroll sync
     SS.xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
@@ -1199,24 +1204,36 @@ function toggleSSMetro(){
   document.getElementById('ss-metro-btn').classList.toggle('on',SS.metroOn);
   if(SS.playing&&SS.metroOn)ssStartMetro();else ssStopMetro();
 }
-function ssStopMetro(){clearInterval(SS.metroTimer);SS.metroTimer=null;SS.beatCount=0;}
+function ssStopMetro(){
+  if(SS.metroTimer){clearTimeout(SS.metroTimer);SS.metroTimer=null;}
+  SS.beatCount=0;SS.nextBeatTime=0;
+}
 function ssStartMetro(){
   ssStopMetro();
-  const beatMs=60000/state.student.bpm;
-  SS.metroTimer=setInterval(()=>{
-    try{
-      const ctx=getAudioCtx();if(ctx.state==='suspended')ctx.resume();
-      const osc=ctx.createOscillator(),gain=ctx.createGain();
+  const ctx=getAudioCtx();
+  if(ctx.state==='suspended')ctx.resume();
+  const beatSec=60/state.student.bpm;
+  SS.nextBeatTime=ctx.currentTime+0.05; // start slightly ahead
+  SS.beatCount=0;
+  function scheduleBeat(){
+    if(!SS.playing||!SS.metroOn)return;
+    const ctx=getAudioCtx();
+    // Schedule all beats within next 200ms lookahead
+    while(SS.nextBeatTime<ctx.currentTime+0.2){
       const isDown=(SS.beatCount%getSSBeatsPerBar()===0);
-      osc.frequency.value=isDown?1400:900;
+      const osc=ctx.createOscillator(),gain=ctx.createGain();
       osc.type='square';
-      gain.gain.setValueAtTime(isDown?0.15:0.08,ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.04);
+      osc.frequency.value=isDown?1400:900;
+      gain.gain.setValueAtTime(isDown?0.15:0.08,SS.nextBeatTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001,SS.nextBeatTime+0.04);
       osc.connect(gain);gain.connect(ctx.destination);
-      osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.045);
+      osc.start(SS.nextBeatTime);osc.stop(SS.nextBeatTime+0.045);
+      SS.nextBeatTime+=beatSec;
       SS.beatCount++;
-    }catch(e){}
-  },beatMs);
+    }
+    SS.metroTimer=setTimeout(scheduleBeat,100); // check every 100ms
+  }
+  scheduleBeat();
 }
 function getSSBeatsPerBar(){const p=state.student.current;const[n]=(p?.compas||'4/4').split('/');return parseInt(n)||4;}
 
