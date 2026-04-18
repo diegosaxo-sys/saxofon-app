@@ -729,145 +729,176 @@ function renderCompasVex(compasData, compasStr, mode){
   const ci=compasData._ci!==undefined?compasData._ci:0;
   const notas=notasIdx.map(x=>x.nota);
 
-  try{
-    const {Renderer,Stave,StaveNote,Voice,Formatter,Accidental,Dot,StaveTie}=Vex.Flow;
-    const LABEL_H=showColors?18:16;
-    const BLOCK_H=showColors?44:0;
-    const GAP=showColors?5:0;
-    const PAD_TOP=14,PAD_BOT=14,VEX_H=40;
-    const NOTE_SLOT=70,CLEF_W=58;
-    const W=Math.max(400,CLEF_W+notas.length*NOTE_SLOT+30);
-    const STAFF_TOP=LABEL_H+BLOCK_H+GAP+PAD_TOP;
-    const H=STAFF_TOP+VEX_H+PAD_BOT;
+  const LBL_H=showColors?16:14;
+  const BLK_H=showColors?42:0;
+  const GAP=showColors?4:0;
+  const LS=9;
+  const STAFF_H=4*LS;
+  const PAD_T=20;
+  const PAD_B=16;
+  const CLEF_W=46;
+  const SLOT=56;
+  const W=Math.max(300, CLEF_W+notas.length*SLOT+16);
+  const STAFF_Y=LBL_H+BLK_H+GAP+PAD_T;
+  const H=STAFF_Y+STAFF_H+PAD_B;
 
-    const tmp=document.createElement('div');
-    tmp.style.cssText='position:absolute;visibility:hidden;left:0;top:0;pointer-events:none;';
-    document.body.appendChild(tmp);
+  const STEPS={
+    'do-0':10,'re-0':9,'mi-0':8,'fa-0':7,'sol-0':6,'la-0':5,'si-0':4,
+    'do-1':3,'re-1':2,'mi-1':1,'fa-1':0,'sol-1':-1,'la-1':-2,'si-1':-3,
+    'do-2':-4,'re-2':-5,'mi-2':-6,'fa-2':-7,'sol-2':-8
+  };
+  function sy(step){return STAFF_Y+step*(LS/2);}
 
-    const renderer=new Renderer(tmp,Renderer.Backends.SVG);
-    renderer.resize(W,H);
-    const ctx=renderer.getContext();
-    const stave=new Stave(10,STAFF_TOP,W-20);
-    stave.addClef('treble').addTimeSignature(compasStr);
-    stave.setContext(ctx).draw();
+  const NS='http://www.w3.org/2000/svg';
+  function el(tag,attrs,parent){
+    const e=document.createElementNS(NS,tag);
+    Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));
+    if(parent)parent.appendChild(e);
+    return e;
+  }
+  function txt(text,attrs,parent){
+    const e=document.createElementNS(NS,'text');
+    Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));
+    e.textContent=text;
+    if(parent)parent.appendChild(e);
+    return e;
+  }
 
-    const [ns,ds]=compasStr.split('/');
-    const totalQ=parseInt(ns)*(4/parseInt(ds));
+  const svg=el('svg',{xmlns:NS,viewBox:'0 0 '+W+' '+H,style:'display:block;width:100%;height:auto;'});
+  el('rect',{width:W,height:H,fill:'white'},svg);
 
-    const vexNotes=notas.map(nota=>{
-      if(nota.type==='rest'){
-        const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-        const sn=new StaveNote({keys:['b/4'],duration:fig.vex+'r'});
-        if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});
-        return sn;
+  // Staff lines
+  for(let l=0;l<5;l++){
+    const y=STAFF_Y+l*LS;
+    el('line',{x1:6,y1:y,x2:W-4,y2:y,stroke:'#333','stroke-width':'0.9'},svg);
+  }
+  el('line',{x1:W-4,y1:STAFF_Y,x2:W-4,y2:STAFF_Y+STAFF_H,stroke:'#333','stroke-width':'1.5'},svg);
+
+  // Treble clef
+  txt('𝄞',{x:7,y:STAFF_Y+STAFF_H+5,'font-size':40,'font-family':'serif',fill:'#222','dominant-baseline':'auto'},svg);
+
+  // Time signature
+  const [tn,td]=compasStr.split('/');
+  txt(tn,{x:CLEF_W-2,y:STAFF_Y+LS*1.4,'font-size':12,'font-weight':'bold','font-family':'serif',fill:'#222','text-anchor':'middle','dominant-baseline':'middle'},svg);
+  txt(td,{x:CLEF_W-2,y:STAFF_Y+LS*2.8,'font-size':12,'font-weight':'bold','font-family':'serif',fill:'#222','text-anchor':'middle','dominant-baseline':'middle'},svg);
+
+  // Highlight style
+  const styleEl=document.createElementNS(NS,'style');
+  styleEl.textContent='.svn-ring{transition:opacity .08s}.svn-active .svn-ring{opacity:.2}';
+  svg.appendChild(styleEl);
+
+  notasIdx.forEach(({nota,ni},i)=>{
+    const x=CLEF_W+i*SLOT+SLOT/2;
+    const color=nota.type==='note'?(NOTE_COLORS[nota.key]||'#333'):'#888';
+    const tc=nota.type==='note'?(NOTE_TEXT[nota.key]||'white'):'#fff';
+    const nm=nota.type==='note'?NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]:'𝄽';
+    const altS=nota.type==='note'?altSym(nota.alt):'';
+    const octS=nota.type==='note'?(OCTAVAS[nota.oct]?.suffix||''):'';
+    const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+    const dot=nota.dot&&fig.dot_val;
+    const bw=SLOT-6;
+
+    const g=el('g',{id:'svn-'+ci+'-'+ni,class:'svn-note'},svg);
+    el('rect',{class:'svn-ring',x:x-bw/2-2,y:0,width:bw+4,height:H,rx:4,fill:color,opacity:0},g);
+
+    if(showColors){
+      const by=LBL_H, bh=BLK_H-4;
+      el('rect',{x:x-bw/2,y:by,width:bw,height:bh,rx:6,fill:color,stroke:'rgba(0,0,0,.12)','stroke-width':1},g);
+      txt(altS+nm,{x,y:by+bh/2,'text-anchor':'middle','dominant-baseline':'middle','font-size':12,'font-weight':900,'font-family':'Nunito,sans-serif',fill:tc},g);
+      if(octS) txt(octS,{x:x+bw/2-3,y:by+bh-2,'text-anchor':'end','font-size':7,'font-family':'Nunito,sans-serif',fill:tc,opacity:.8},g);
+      el('line',{x1:x,y1:LBL_H+BLK_H,x2:x,y2:STAFF_Y,stroke:color,'stroke-width':'1.2','stroke-dasharray':'2,2',opacity:.4},g);
+      if(octS) txt(octS,{x,y:LBL_H-2,'text-anchor':'middle','dominant-baseline':'auto','font-size':9,'font-weight':800,'font-family':'Nunito,sans-serif',fill:color},g);
+    } else if(nota.type==='note'){
+      txt(altS+nm+(octS?' '+octS:''),{x,y:STAFF_Y-4,'text-anchor':'middle','dominant-baseline':'auto','font-size':11,'font-weight':900,'font-family':'Nunito,sans-serif',fill:color},g);
+    }
+
+    if(nota.type==='rest'){
+      const ry=sy(2);
+      if(fig.id==='redonda'){
+        el('rect',{x:x-10,y:ry-LS/2,width:20,height:LS/2,fill:'#555'},g);
+        el('rect',{x:x-10,y:ry,width:20,height:LS/2,fill:'white',stroke:'#555','stroke-width':1},g);
+      } else if(fig.id==='blanca'){
+        el('rect',{x:x-10,y:ry-LS/2,width:20,height:LS/2,fill:'#555'},g);
+      } else {
+        txt('𝄼',{x,y:ry+4,'text-anchor':'middle','font-size':16,'font-family':'serif',fill:'#555'},g);
       }
-      const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-      const vk=VEX_NOTE_MAP[nota.key]||'c';
-      const oct=(nota.oct||0)+4;
-      const acc=nota.alt==='sharp'?'#':nota.alt==='flat'?'b':'';
-      const color=NOTE_COLORS[nota.key]||'#000';
-      const sn=new StaveNote({keys:[`${vk}${acc}/${oct}`],duration:fig.vex,stem_direction:oct>=5?-1:1});
-      sn.setStyle({fillStyle:color,strokeStyle:color});
-      if(nota.alt==='sharp')sn.addModifier(new Accidental('#'));
-      else if(nota.alt==='flat')sn.addModifier(new Accidental('b'));
-      if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});
-      return sn;
-    });
+      if(dot) el('circle',{cx:x+14,cy:ry-2,r:2,fill:'#555'},g);
+    } else {
+      const sk=nota.key+'-'+nota.oct;
+      const step=STEPS[sk]!==undefined?STEPS[sk]:2;
+      const ny=sy(step);
+      const stemUp=step>=-1;
 
-    const voice=new Voice({num_beats:totalQ,beat_value:4});
-    voice.setMode(Voice.Mode.SOFT);
-    voice.addTickables(vexNotes);
-    new Formatter().joinVoices([voice]).format([voice],W-CLEF_W-30);
-    voice.draw(ctx,stave);
-
-    // Ties
-    try{
-      for(let i=0;i<notas.length-1;i++){
-        const a=notas[i],b=notas[i+1];
-        if(a.tied&&b&&a.key===b.key&&a.oct===b.oct)
-          new StaveTie({first_note:vexNotes[i],last_note:vexNotes[i+1],first_indices:[0],last_indices:[0]}).setContext(ctx).draw();
+      // Ledger lines above staff
+      if(step<0){
+        for(let p=Math.ceil(step/2)*2;p<0;p+=2){
+          el('line',{x1:x-11,y1:sy(p),x2:x+11,y2:sy(p),stroke:color,'stroke-width':'1.1'},g);
+        }
       }
-    }catch(e){}
-
-    const svg=tmp.querySelector('svg');
-    if(!svg){document.body.removeChild(tmp);return null;}
-
-    // KEY FIX: set viewBox to native size, then use width:100% height:auto
-    // This makes SVG scale DOWN to fit any container without clipping
-    const svgW=parseFloat(svg.getAttribute('width')||W);
-    const svgH=parseFloat(svg.getAttribute('height')||H);
-    svg.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
-    svg.setAttribute('preserveAspectRatio','xMinYMin meet');
-    svg.removeAttribute('width');
-    svg.removeAttribute('height');
-    // width:100% fills container, height:auto preserves aspect ratio = no clipping ever
-    svg.style.cssText=`display:block;width:100%;height:auto;min-height:80px;`;
-
-    // Get X positions
-    const xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
-    for(let i=0;i<notas.length;i++)if(!xPos[i])xPos[i]=CLEF_W+10+(i+0.5)*((W-CLEF_W-20)/notas.length);
-
-    // Highlight style
-    const styleEl=document.createElementNS('http://www.w3.org/2000/svg','style');
-    styleEl.textContent='.svn-ring{transition:opacity 0.08s;}.svn-active .svn-ring{opacity:0.18;}';
-    svg.insertBefore(styleEl,svg.firstChild);
-
-    // Overlays
-    notasIdx.forEach(({nota,ni},i)=>{
-      const x=xPos[i];if(!x)return;
-      const color=nota.type==='note'?(NOTE_COLORS[nota.key]||'#888'):'#aaa';
-      const tc=nota.type==='note'?(NOTE_TEXT[nota.key]||'white'):'#555';
-      const noteName=nota.type==='note'?NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]:'𝄽';
-      const altS=nota.type==='note'?altSym(nota.alt):'';
-      const octSuf=nota.type==='note'?(OCTAVAS[nota.oct]?.suffix||''):'';
-      const bw=Math.min(NOTE_SLOT-6,56);
-
-      const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-      g.setAttribute('id',`svn-${ci}-${ni}`);g.setAttribute('class','svn-note');
-
-      const ring=document.createElementNS('http://www.w3.org/2000/svg','rect');
-      ring.setAttribute('x',x-bw/2-2);ring.setAttribute('y','0');
-      ring.setAttribute('width',bw+4);ring.setAttribute('height',svgH);
-      ring.setAttribute('rx','5');ring.setAttribute('fill',color);
-      ring.setAttribute('opacity','0');ring.setAttribute('class','svn-ring');
-      g.appendChild(ring);
-
-      if(showColors){
-        const bh=BLOCK_H-4,by=LABEL_H;
-        const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
-        rect.setAttribute('x',x-bw/2);rect.setAttribute('y',by);
-        rect.setAttribute('width',bw);rect.setAttribute('height',bh);
-        rect.setAttribute('rx','7');rect.setAttribute('fill',color);
-        rect.setAttribute('stroke','rgba(0,0,0,0.12)');rect.setAttribute('stroke-width','1.2');
-        g.appendChild(rect);
-        const t=document.createElementNS('http://www.w3.org/2000/svg','text');
-        t.setAttribute('x',x);t.setAttribute('y',by+bh/2);
-        t.setAttribute('text-anchor','middle');t.setAttribute('dominant-baseline','middle');
-        t.setAttribute('font-size','13');t.setAttribute('font-weight','900');
-        t.setAttribute('font-family','Nunito,sans-serif');t.setAttribute('fill',tc);
-        t.textContent=altS+noteName;g.appendChild(t);
-        if(octSuf){const ts=document.createElementNS('http://www.w3.org/2000/svg','text');ts.setAttribute('x',x+bw/2-3);ts.setAttribute('y',by+bh-3);ts.setAttribute('text-anchor','end');ts.setAttribute('font-size','8');ts.setAttribute('font-family','Nunito,sans-serif');ts.setAttribute('fill',tc);ts.setAttribute('opacity','0.85');ts.textContent=octSuf;g.appendChild(ts);}
-        if(GAP>2){const line=document.createElementNS('http://www.w3.org/2000/svg','line');line.setAttribute('x1',x);line.setAttribute('y1',LABEL_H+BLOCK_H);line.setAttribute('x2',x);line.setAttribute('y2',STAFF_TOP);line.setAttribute('stroke',color);line.setAttribute('stroke-width','1.5');line.setAttribute('stroke-dasharray','3,2');line.setAttribute('opacity','0.4');g.appendChild(line);}
-        if(octSuf){const ol=document.createElementNS('http://www.w3.org/2000/svg','text');ol.setAttribute('x',x);ol.setAttribute('y',LABEL_H-3);ol.setAttribute('text-anchor','middle');ol.setAttribute('dominant-baseline','auto');ol.setAttribute('font-size','10');ol.setAttribute('font-weight','800');ol.setAttribute('font-family','Nunito,sans-serif');ol.setAttribute('fill',color);ol.textContent=octSuf;g.appendChild(ol);}
-      }else if(nota.type==='note'){
-        const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-        lbl.setAttribute('x',x);lbl.setAttribute('y',STAFF_TOP-6);
-        lbl.setAttribute('text-anchor','middle');lbl.setAttribute('dominant-baseline','auto');
-        lbl.setAttribute('font-size','13');lbl.setAttribute('font-weight','900');
-        lbl.setAttribute('font-family','Nunito,sans-serif');lbl.setAttribute('fill',color);
-        lbl.textContent=altS+noteName+(octSuf?' '+octSuf:'');
-        g.appendChild(lbl);
+      // Ledger lines below staff
+      if(step>8){
+        for(let p=10;p<=step;p+=2){
+          el('line',{x1:x-11,y1:sy(p),x2:x+11,y2:sy(p),stroke:color,'stroke-width':'1.1'},g);
+        }
       }
-      svg.appendChild(g);
-    });
 
-    document.body.removeChild(tmp);
-    return svg;
-  }catch(err){console.error('VexFlow:',err);return null;}
+      // Note head
+      const rx=7,ry2=4.5;
+      if(fig.id==='redonda'){
+        el('ellipse',{cx:x,cy:ny,rx,ry:ry2,fill:color,stroke:color,'stroke-width':1},g);
+        el('ellipse',{cx:x,cy:ny,rx:rx-3,ry:ry2-2,fill:'white'},g);
+      } else if(fig.id==='blanca'){
+        el('ellipse',{cx:x,cy:ny,rx,ry:ry2,fill:'white',stroke:color,'stroke-width':1.8},g);
+      } else {
+        el('ellipse',{cx:x,cy:ny,rx,ry:ry2,fill:color},g);
+      }
+
+      // Accidentals
+      if(nota.alt==='sharp') txt('♯',{x:x-rx-4,y:ny+4,'font-size':12,'font-family':'serif',fill:color,'text-anchor':'middle'},g);
+      if(nota.alt==='flat')  txt('♭',{x:x-rx-4,y:ny+5,'font-size':13,'font-family':'serif',fill:color,'text-anchor':'middle'},g);
+
+      // Dot
+      if(dot){
+        const dy=step%2===0?ny-LS/2:ny;
+        el('circle',{cx:x+rx+5,cy:dy,r:2.2,fill:color},g);
+      }
+
+      // Stem
+      if(fig.id!=='redonda'){
+        if(stemUp){
+          const sx2=x+rx,sy1=ny,sy2=ny-28;
+          el('line',{x1:sx2,y1:sy1,x2:sx2,y2:sy2,stroke:color,'stroke-width':1.5},g);
+          if(fig.id==='corchea'||fig.id==='semicorchea'){
+            el('path',{d:'M'+sx2+','+sy2+' Q'+(sx2+12)+','+(sy2+8)+' '+(sx2+8)+','+(sy2+18),fill:'none',stroke:color,'stroke-width':1.5},g);
+          }
+          if(fig.id==='semicorchea'){
+            el('path',{d:'M'+sx2+','+(sy2+8)+' Q'+(sx2+12)+','+(sy2+16)+' '+(sx2+8)+','+(sy2+26),fill:'none',stroke:color,'stroke-width':1.5},g);
+          }
+        } else {
+          const sx2=x-rx,sy1=ny,sy2=ny+28;
+          el('line',{x1:sx2,y1:sy1,x2:sx2,y2:sy2,stroke:color,'stroke-width':1.5},g);
+          if(fig.id==='corchea'||fig.id==='semicorchea'){
+            el('path',{d:'M'+sx2+','+sy2+' Q'+(sx2+12)+','+(sy2-8)+' '+(sx2+8)+','+(sy2-18),fill:'none',stroke:color,'stroke-width':1.5},g);
+          }
+          if(fig.id==='semicorchea'){
+            el('path',{d:'M'+sx2+','+(sy2-8)+' Q'+(sx2+12)+','+(sy2-16)+' '+(sx2+8)+','+(sy2-26),fill:'none',stroke:color,'stroke-width':1.5},g);
+          }
+        }
+      }
+
+      // Tie arc
+      if(nota.tied&&i<notasIdx.length-1){
+        const nx2=CLEF_W+(i+1)*SLOT+SLOT/2;
+        const ty=stemUp?ny+8:ny-8;
+        const ctrl=ty+(stemUp?8:-8);
+        el('path',{d:'M'+(x+rx)+','+ty+' Q'+((x+nx2)/2)+','+ctrl+' '+(nx2-rx)+','+ty,fill:'none',stroke:color,'stroke-width':1.5},g);
+      }
+    }
+  });
+
+  return svg;
 }
 
-// ══════════════════════════════════════════════════
-//  VIEWER
 // ══════════════════════════════════════════════════
 function renderViewer(){
   const p=state.student.current;
@@ -946,156 +977,30 @@ function openFullScore(){
   document.getElementById('fullscore-title').textContent=p.titulo||'Partitura';
   const content=document.getElementById('fullscore-content');
   content.innerHTML='';
-
   const titleEl=document.createElement('div');
   titleEl.style.cssText='text-align:center;margin-bottom:1.5rem;';
-  titleEl.innerHTML=`<h1 style="font-size:1.6rem;font-weight:900;color:#2C2416;font-family:Nunito,sans-serif">${escHtml(p.titulo||'Sin título')}</h1><p style="color:#7A6E5F;font-size:0.9rem;font-family:Nunito,sans-serif">${INSTRUMENT_NAMES[p.instrument]||'Alto'} · ${p.compas}</p>`;
+  titleEl.innerHTML='<h1 style="font-size:1.6rem;font-weight:900;color:#2C2416;font-family:Nunito,sans-serif">'+escHtml(p.titulo||'Sin titulo')+'</h1><p style="color:#7A6E5F;font-size:0.9rem;font-family:Nunito,sans-serif">'+(INSTRUMENT_NAMES[p.instrument]||'Alto')+' · '+p.compas+'</p>';
   content.appendChild(titleEl);
-
   const compasStr=p.compas||'4/4';
   const PER_ROW=4;
-
-  // Build rows of compases sharing a single continuous VexFlow stave
-  try{
-    const {Renderer,Stave,StaveNote,Voice,Formatter,Accidental,Dot,StaveTie}=Vex.Flow;
-    const LABEL_H=16,PAD_TOP=14,PAD_BOT=14,VEX_H=40;
-    const NOTE_SLOT=62,CLEF_W=56;
-    const [ns,ds]=compasStr.split('/');
-    const totalQ=parseInt(ns)*(4/parseInt(ds));
-
-    for(let rowStart=0;rowStart<p.compases.length;rowStart+=PER_ROW){
-      const rowCompases=p.compases.slice(rowStart,Math.min(rowStart+PER_ROW,p.compases.length));
-
-      // Count total notes in this row
-      let rowNotasIdx=[];
-      rowCompases.forEach((c,rowCi)=>{
-        (c.notas||[]).forEach((nota,ni)=>{
-          if(nota&&nota!=='skip') rowNotasIdx.push({nota,ni,ci:rowStart+rowCi,rowCi});
-        });
-      });
-      if(!rowNotasIdx.length)continue;
-
-      const W=Math.max(400,CLEF_W+rowNotasIdx.length*NOTE_SLOT+40);
-      const STAFF_TOP=LABEL_H+PAD_TOP;
-      const H=STAFF_TOP+VEX_H+PAD_BOT;
-
-      const tmp=document.createElement('div');
-      tmp.style.cssText='position:absolute;visibility:hidden;left:0;top:0;';
-      document.body.appendChild(tmp);
-
-      const renderer=new Renderer(tmp,Renderer.Backends.SVG);
-      renderer.resize(W,H);
-      const ctx=renderer.getContext();
-
-      // Draw stave with clef only on first row
-      const stave=new Stave(10,STAFF_TOP,W-20);
-      if(rowStart===0) stave.addClef('treble').addTimeSignature(compasStr);
-      else stave.addClef('treble');
-      stave.setContext(ctx).draw();
-
-      const notas=rowNotasIdx.map(x=>x.nota);
-      const rowTotalVal=notas.reduce((s,nota)=>{
-        const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-        const dot=nota.dot&&fig.dot_val;return s+(dot?fig.dot_val:fig.val);
-      },0);
-      const rowTotalQ=rowTotalVal/4;
-
-      const vexNotes=notas.map(nota=>{
-        if(nota.type==='rest'){
-          const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-          const sn=new StaveNote({keys:['b/4'],duration:fig.vex+'r'});
-          if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});return sn;
-        }
-        const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-        const vk=VEX_NOTE_MAP[nota.key]||'c';
-        const oct=(nota.oct||0)+4;
-        const acc=nota.alt==='sharp'?'#':nota.alt==='flat'?'b':'';
-        const color=NOTE_COLORS[nota.key]||'#000';
-        const sn=new StaveNote({keys:[`${vk}${acc}/${oct}`],duration:fig.vex,stem_direction:oct>=5?-1:1});
-        sn.setStyle({fillStyle:color,strokeStyle:color});
-        if(nota.alt==='sharp')sn.addModifier(new Accidental('#'));
-        else if(nota.alt==='flat')sn.addModifier(new Accidental('b'));
-        if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});
-        return sn;
-      });
-
-      const voice=new Voice({num_beats:rowTotalQ,beat_value:4});
-      voice.setMode(Voice.Mode.SOFT);
-      voice.addTickables(vexNotes);
-      new Formatter().joinVoices([voice]).format([voice],W-CLEF_W-30);
-      voice.draw(ctx,stave);
-
-      // Ties
-      try{
-        for(let i=0;i<notas.length-1;i++){
-          const a=notas[i],b=notas[i+1];
-          if(a.tied&&b&&a.key===b.key&&a.oct===b.oct)
-            new StaveTie({first_note:vexNotes[i],last_note:vexNotes[i+1],first_indices:[0],last_indices:[0]}).setContext(ctx).draw();
-        }
-      }catch(e){}
-
-      const svg=tmp.querySelector('svg');
-      if(!svg){document.body.removeChild(tmp);continue;}
-
-      const svgW=parseFloat(svg.getAttribute('width')||W);
-      const svgH=parseFloat(svg.getAttribute('height')||H);
-      svg.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
-      svg.setAttribute('preserveAspectRatio','xMinYMin meet');
-      svg.removeAttribute('width');svg.removeAttribute('height');
-      svg.style.cssText=`display:block;width:100%;height:auto;`;
-
-      // Get xPos
-      const xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
-      for(let i=0;i<xPos.length;i++)if(!xPos[i])xPos[i]=CLEF_W+10+(i+0.5)*((W-CLEF_W-20)/xPos.length);
-
-      // Draw barlines between compases + note labels
-      let prevRowCi=-1;
-      rowNotasIdx.forEach(({nota,rowCi,ci},i)=>{
-        const x=xPos[i];if(!x)return;
-        // Barline at start of each compas (except first)
-        if(rowCi!==prevRowCi&&i>0){
-          const bl=document.createElementNS('http://www.w3.org/2000/svg','line');
-          bl.setAttribute('x1',x-NOTE_SLOT/2);bl.setAttribute('y1',STAFF_TOP);
-          bl.setAttribute('x2',x-NOTE_SLOT/2);bl.setAttribute('y2',STAFF_TOP+VEX_H);
-          bl.setAttribute('stroke','#444');bl.setAttribute('stroke-width','1.2');
-          svg.appendChild(bl);
-          const cn=document.createElementNS('http://www.w3.org/2000/svg','text');
-          cn.setAttribute('x',x-NOTE_SLOT/2+3);cn.setAttribute('y',STAFF_TOP-3);
-          cn.setAttribute('font-size','8');cn.setAttribute('font-family','Nunito,sans-serif');cn.setAttribute('fill','#888');
-          cn.textContent=ci+1;svg.appendChild(cn);
-        }
-        prevRowCi=rowCi;
-        // Note label
-        if(nota.type==='note'){
-          const color=NOTE_COLORS[nota.key]||'#000';
-          const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-          lbl.setAttribute('x',x);lbl.setAttribute('y',STAFF_TOP-4);
-          lbl.setAttribute('text-anchor','middle');lbl.setAttribute('dominant-baseline','auto');
-          lbl.setAttribute('font-size','10');lbl.setAttribute('font-weight','900');
-          lbl.setAttribute('font-family','Nunito,sans-serif');lbl.setAttribute('fill',color);
-          lbl.textContent=altSym(nota.alt)+NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]+(OCTAVAS[nota.oct]?.suffix||'');
-          svg.appendChild(lbl);
-        }
-      });
-
-      // Row label
-      const rl=document.createElementNS('http://www.w3.org/2000/svg','text');
-      rl.setAttribute('x','14');rl.setAttribute('y',STAFF_TOP-3);
-      rl.setAttribute('font-size','8');rl.setAttribute('font-family','Nunito,sans-serif');rl.setAttribute('fill','#aaa');
-      rl.textContent=`C${rowStart+1}–${Math.min(rowStart+PER_ROW,p.compases.length)}`;
-      svg.appendChild(rl);
-
-      const wrapper=document.createElement('div');
-      wrapper.style.cssText='margin-bottom:6px;border:1px solid #C8BFA8;border-radius:6px;overflow-x:auto;overflow-y:visible;background:white;-webkit-overflow-scrolling:touch;';
-      wrapper.appendChild(svg);
-      content.appendChild(wrapper);
-      document.body.removeChild(tmp);
-    }
-  }catch(err){
-    content.innerHTML+='<p style="color:#999;padding:1rem">Error al renderizar la partitura completa.</p>';
-    console.error(err);
+  for(let rowStart=0;rowStart<p.compases.length;rowStart+=PER_ROW){
+    const rowDiv=document.createElement('div');
+    rowDiv.style.cssText='display:flex;gap:0;margin-bottom:6px;border:1px solid #C8BFA8;border-radius:6px;overflow:hidden;background:white;';
+    const rowCompases=p.compases.slice(rowStart,Math.min(rowStart+PER_ROW,p.compases.length));
+    rowCompases.forEach((c,ri)=>{
+      const ci=rowStart+ri;
+      const cell=document.createElement('div');
+      cell.style.cssText='flex:1;min-width:0;border-right:'+(ri<rowCompases.length-1?'1px solid #C8BFA8':'none')+';';
+      const hdr=document.createElement('div');
+      hdr.style.cssText='font-size:0.62rem;color:#7A6E5F;font-family:Space Mono,monospace;padding:2px 6px;border-bottom:1px solid #EDE8DC;font-weight:700;';
+      hdr.textContent='Compas '+(ci+1)+' — '+compasStr;
+      cell.appendChild(hdr);
+      const svg=renderCompasVex({...c,_ci:ci},compasStr,3);
+      if(svg) cell.appendChild(svg);
+      rowDiv.appendChild(cell);
+    });
+    content.appendChild(rowDiv);
   }
-
   document.getElementById('fullscore-overlay').classList.add('open');
 }
 function closeFullScore(){document.getElementById('fullscore-overlay').classList.remove('open');}
@@ -1143,154 +1048,163 @@ function ssInit(){
 
 function ssRenderStaff(p){
   const compasStr=p.compas||'4/4';
-  // Build all notes flat for a single long stave
-  const allNotasIdx=[];
-  let noteGlobalIdx=0;
+  const staffScroll=document.getElementById('ss-staff-scroll');
+  staffScroll.innerHTML='';
+
+  // Build flat note list keeping global index
+  const allIdx=[];
+  let gi=0;
   p.compases.forEach((c,ci)=>{
     (c.notas||[]).forEach((nota,ni)=>{
-      if(nota&&nota!=='skip') allNotasIdx.push({nota,ni,ci,globalIdx:noteGlobalIdx++});
+      if(nota&&nota!=='skip') allIdx.push({nota,ni,ci,gi:gi++});
     });
   });
-  if(!allNotasIdx.length)return;
+  if(!allIdx.length)return;
 
-  try{
-    const {Renderer,Stave,StaveNote,Voice,Formatter,Accidental,Dot,StaveTie}=Vex.Flow;
-    const CLEF_W=58,NOTE_SLOT=72;
-    const W=CLEF_W+allNotasIdx.length*NOTE_SLOT+40;
-    const STAFF_Y=40,VEX_H=40,PAD_BOT=16,LABEL_H=16;
-    const H=LABEL_H+STAFF_Y+VEX_H+PAD_BOT;
+  const LS=9;
+  const STAFF_H=4*LS;
+  const LBL_H=14;
+  const PAD_T=20;
+  const PAD_B=16;
+  const CLEF_W=46;
+  const SLOT=60;
+  const W=CLEF_W+allIdx.length*SLOT+20;
+  const STAFF_Y=LBL_H+PAD_T;
+  const H=STAFF_Y+STAFF_H+PAD_B;
 
-    const tmp=document.createElement('div');
-    tmp.style.cssText='position:absolute;visibility:hidden;left:0;top:0;';
-    document.body.appendChild(tmp);
+  const STEPS={
+    'do-0':10,'re-0':9,'mi-0':8,'fa-0':7,'sol-0':6,'la-0':5,'si-0':4,
+    'do-1':3,'re-1':2,'mi-1':1,'fa-1':0,'sol-1':-1,'la-1':-2,'si-1':-3,
+    'do-2':-4,'re-2':-5,'mi-2':-6,'fa-2':-7,'sol-2':-8
+  };
+  function sy(step){return STAFF_Y+step*(LS/2);}
+  const NS='http://www.w3.org/2000/svg';
+  function el(tag,attrs,parent){
+    const e=document.createElementNS(NS,tag);
+    Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));
+    if(parent)parent.appendChild(e);return e;
+  }
+  function tx(text,attrs,parent){
+    const e=document.createElementNS(NS,'text');
+    Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));
+    e.textContent=text;if(parent)parent.appendChild(e);return e;
+  }
 
-    const renderer=new Renderer(tmp,Renderer.Backends.SVG);
-    renderer.resize(W,H);
-    const ctx=renderer.getContext();
-    const stave=new Stave(10,LABEL_H+STAFF_Y,W-20);
-    stave.addClef('treble').addTimeSignature(compasStr);
-    stave.setContext(ctx).draw();
+  const svg=el('svg',{xmlns:NS,viewBox:'0 0 '+W+' '+H,
+    style:'display:block;width:'+W+'px;height:'+H+'px;'});
+  el('rect',{width:W,height:H,fill:'white'},svg);
 
-    // Calculate total beats for voice
-    const totalVal=allNotasIdx.reduce((s,{nota})=>{
-      const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-      const dot=nota.dot&&fig.dot_val;return s+(dot?fig.dot_val:fig.val);
-    },0);
-    const totalQ=totalVal/4;
+  // Staff lines
+  for(let l=0;l<5;l++){
+    el('line',{x1:6,y1:STAFF_Y+l*LS,x2:W-4,y2:STAFF_Y+l*LS,stroke:'#333','stroke-width':'0.9'},svg);
+  }
+  el('line',{x1:W-4,y1:STAFF_Y,x2:W-4,y2:STAFF_Y+STAFF_H,stroke:'#333','stroke-width':'1.5'},svg);
 
-    const vexNotes=allNotasIdx.map(({nota})=>{
-      if(nota.type==='rest'){
-        const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-        const sn=new StaveNote({keys:['b/4'],duration:fig.vex+'r'});
-        if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});return sn;
+  // Clef
+  tx('𝄞',{x:7,y:STAFF_Y+STAFF_H+5,'font-size':40,'font-family':'serif',fill:'#222','dominant-baseline':'auto'},svg);
+  const[tn,td]=compasStr.split('/');
+  tx(tn,{x:CLEF_W-2,y:STAFF_Y+LS*1.4,'font-size':12,'font-weight':'bold','font-family':'serif',fill:'#222','text-anchor':'middle','dominant-baseline':'middle'},svg);
+  tx(td,{x:CLEF_W-2,y:STAFF_Y+LS*2.8,'font-size':12,'font-weight':'bold','font-family':'serif',fill:'#222','text-anchor':'middle','dominant-baseline':'middle'},svg);
+
+  // Style
+  const styleEl=document.createElementNS(NS,'style');
+  styleEl.textContent='.ss-ring{transition:opacity .06s}.ss-active .ss-ring{opacity:.22}';
+  svg.appendChild(styleEl);
+
+  // Barlines between compases
+  let prevCi=-1;
+  allIdx.forEach(({ci},i)=>{
+    if(ci!==prevCi&&i>0){
+      const bx=CLEF_W+i*SLOT-SLOT/2+SLOT/4;
+      el('line',{x1:bx,y1:STAFF_Y,x2:bx,y2:STAFF_Y+STAFF_H,stroke:'#555','stroke-width':'1.2'},svg);
+      tx(String(ci+1),{x:bx+3,y:STAFF_Y-4,'font-size':8,'font-family':'Nunito,sans-serif',fill:'#999'},svg);
+    }
+    prevCi=ci;
+  });
+
+  // Notes
+  allIdx.forEach(({nota,ci,ni,gi:gidx},i)=>{
+    const x=CLEF_W+i*SLOT+SLOT/2;
+    const color=nota.type==='note'?(NOTE_COLORS[nota.key]||'#333'):'#888';
+    const nm=nota.type==='note'?NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]:'';
+    const altS=nota.type==='note'?altSym(nota.alt):'';
+    const octS=nota.type==='note'?(OCTAVAS[nota.oct]?.suffix||''):'';
+    const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+    const dot=nota.dot&&fig.dot_val;
+
+    const g=el('g',{id:'ss-'+gidx,class:'ss-note',style:'cursor:pointer'},svg);
+    g.addEventListener('click',()=>ssSetStart(gidx));
+    el('rect',{class:'ss-ring',x:x-26,y:0,width:52,height:H,rx:4,fill:color,opacity:0},g);
+
+    // Note name label above staff
+    if(nota.type==='note'){
+      tx(altS+nm+(octS?' '+octS:''),{x,y:STAFF_Y-4,'text-anchor':'middle','dominant-baseline':'auto',
+        'font-size':11,'font-weight':900,'font-family':'Nunito,sans-serif',fill:color},g);
+    }
+
+    if(nota.type==='rest'){
+      const ry=sy(2);
+      if(fig.id==='redonda'){
+        el('rect',{x:x-10,y:ry-LS/2,width:20,height:LS/2,fill:'#555'},g);
+        el('rect',{x:x-10,y:ry,width:20,height:LS/2,fill:'white',stroke:'#555','stroke-width':1},g);
+      } else if(fig.id==='blanca'){
+        el('rect',{x:x-10,y:ry-LS/2,width:20,height:LS/2,fill:'#555'},g);
+      } else {
+        tx('𝄼',{x,y:ry+4,'text-anchor':'middle','font-size':16,'font-family':'serif',fill:'#555'},g);
       }
-      const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-      const vk=VEX_NOTE_MAP[nota.key]||'c';
-      const oct=(nota.oct||0)+4;
-      const acc=nota.alt==='sharp'?'#':nota.alt==='flat'?'b':'';
-      const color=NOTE_COLORS[nota.key]||'#000';
-      const sn=new StaveNote({keys:[`${vk}${acc}/${oct}`],duration:fig.vex,stem_direction:oct>=5?-1:1});
-      sn.setStyle({fillStyle:color,strokeStyle:color});
-      if(nota.alt==='sharp')sn.addModifier(new Accidental('#'));
-      else if(nota.alt==='flat')sn.addModifier(new Accidental('b'));
-      if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});
-      return sn;
-    });
+      if(dot) el('circle',{cx:x+14,cy:ry-2,r:2,fill:'#555'},g);
+    } else {
+      const sk=nota.key+'-'+nota.oct;
+      const step=STEPS[sk]!==undefined?STEPS[sk]:2;
+      const ny=sy(step);
+      const stemUp=step>=-1;
+      const rx=7,ry2=4.5;
 
-    const voice=new Voice({num_beats:totalQ,beat_value:4});
-    voice.setMode(Voice.Mode.SOFT);
-    voice.addTickables(vexNotes);
-    new Formatter().joinVoices([voice]).format([voice],W-CLEF_W-30);
-    voice.draw(ctx,stave);
+      // Ledger lines
+      if(step<0){for(let p=Math.ceil(step/2)*2;p<0;p+=2) el('line',{x1:x-11,y1:sy(p),x2:x+11,y2:sy(p),stroke:color,'stroke-width':'1.1'},g);}
+      if(step>8){for(let p=10;p<=step;p+=2) el('line',{x1:x-11,y1:sy(p),x2:x+11,y2:sy(p),stroke:color,'stroke-width':'1.1'},g);}
 
-    // Ties
-    try{
-      for(let i=0;i<allNotasIdx.length-1;i++){
-        const a=allNotasIdx[i].nota,b=allNotasIdx[i+1].nota;
-        if(a.tied&&b&&a.key===b.key&&a.oct===b.oct)
-          new StaveTie({first_note:vexNotes[i],last_note:vexNotes[i+1],first_indices:[0],last_indices:[0]}).setContext(ctx).draw();
+      // Head
+      if(fig.id==='redonda'){
+        el('ellipse',{cx:x,cy:ny,rx,ry:ry2,fill:color,stroke:color,'stroke-width':1},g);
+        el('ellipse',{cx:x,cy:ny,rx:rx-3,ry:ry2-2,fill:'white'},g);
+      } else if(fig.id==='blanca'){
+        el('ellipse',{cx:x,cy:ny,rx,ry:ry2,fill:'white',stroke:color,'stroke-width':1.8},g);
+      } else {
+        el('ellipse',{cx:x,cy:ny,rx,ry:ry2,fill:color},g);
       }
-    }catch(e){}
 
-    // Barlines between compases
-    let prevCi=-1;
-    allNotasIdx.forEach(({ci},i)=>{
-      if(ci!==prevCi&&i>0){
-        const x=vexNotes[i]?vexNotes[i].getAbsoluteX():0;
-        if(x){
-          const bl=document.createElementNS('http://www.w3.org/2000/svg','line');
-          bl.setAttribute('x1',x-NOTE_SLOT/2);bl.setAttribute('y1',LABEL_H+STAFF_Y);
-          bl.setAttribute('x2',x-NOTE_SLOT/2);bl.setAttribute('y2',LABEL_H+STAFF_Y+VEX_H);
-          bl.setAttribute('stroke','#555');bl.setAttribute('stroke-width','1.2');
-          // add after draw
-          tmp.querySelector('svg')?.appendChild(bl);
-          // Compas number label
-          const cn=document.createElementNS('http://www.w3.org/2000/svg','text');
-          cn.setAttribute('x',x-NOTE_SLOT/2+3);cn.setAttribute('y',LABEL_H+STAFF_Y-4);
-          cn.setAttribute('font-size','9');cn.setAttribute('font-family','Nunito,sans-serif');cn.setAttribute('fill','#888');
-          cn.textContent=ci+1;
-          tmp.querySelector('svg')?.appendChild(cn);
+      if(nota.alt==='sharp') tx('♯',{x:x-rx-4,y:ny+4,'font-size':12,'font-family':'serif',fill:color,'text-anchor':'middle'},g);
+      if(nota.alt==='flat')  tx('♭',{x:x-rx-4,y:ny+5,'font-size':13,'font-family':'serif',fill:color,'text-anchor':'middle'},g);
+      if(dot){const dy=step%2===0?ny-LS/2:ny;el('circle',{cx:x+rx+5,cy:dy,r:2.2,fill:color},g);}
+
+      // Stem
+      if(fig.id!=='redonda'){
+        if(stemUp){
+          const sx=x+rx,sy2=ny-28;
+          el('line',{x1:sx,y1:ny,x2:sx,y2:sy2,stroke:color,'stroke-width':1.5},g);
+          if(fig.id==='corchea'||fig.id==='semicorchea') el('path',{d:'M'+sx+','+sy2+' Q'+(sx+12)+','+(sy2+8)+' '+(sx+8)+','+(sy2+18),fill:'none',stroke:color,'stroke-width':1.5},g);
+          if(fig.id==='semicorchea') el('path',{d:'M'+sx+','+(sy2+8)+' Q'+(sx+12)+','+(sy2+16)+' '+(sx+8)+','+(sy2+26),fill:'none',stroke:color,'stroke-width':1.5},g);
+        } else {
+          const sx=x-rx,sy2=ny+28;
+          el('line',{x1:sx,y1:ny,x2:sx,y2:sy2,stroke:color,'stroke-width':1.5},g);
+          if(fig.id==='corchea'||fig.id==='semicorchea') el('path',{d:'M'+sx+','+sy2+' Q'+(sx+12)+','+(sy2-8)+' '+(sx+8)+','+(sy2-18),fill:'none',stroke:color,'stroke-width':1.5},g);
+          if(fig.id==='semicorchea') el('path',{d:'M'+sx+','+(sy2-8)+' Q'+(sx+12)+','+(sy2-16)+' '+(sx+8)+','+(sy2-26),fill:'none',stroke:color,'stroke-width':1.5},g);
         }
       }
-      prevCi=ci;
-    });
 
-    const svg=tmp.querySelector('svg');
-    if(!svg){document.body.removeChild(tmp);return;}
-
-    const svgW=parseFloat(svg.getAttribute('width')||W);
-    const svgH=parseFloat(svg.getAttribute('height')||H);
-    svg.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
-    svg.setAttribute('preserveAspectRatio','xMinYMin meet');
-    svg.removeAttribute('width');svg.removeAttribute('height');
-    // Fixed pixel width here because SS scrolls horizontally by design
-    svg.style.cssText=`display:block;width:${svgW}px;height:auto;min-height:${svgH}px;`;
-
-    // Get xPos for scroll sync
-    SS.xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
-    for(let i=0;i<SS.xPos.length;i++)if(!SS.xPos[i])SS.xPos[i]=CLEF_W+10+(i+0.5)*((W-CLEF_W-20)/SS.xPos.length);
-
-    // Add style + overlays
-    const styleEl=document.createElementNS('http://www.w3.org/2000/svg','style');
-    styleEl.textContent='.ss-ring{transition:opacity 0.06s;}.ss-active .ss-ring{opacity:0.2;}';
-    svg.insertBefore(styleEl,svg.firstChild);
-
-    allNotasIdx.forEach(({nota,ci,ni,globalIdx},i)=>{
-      const x=SS.xPos[i];if(!x)return;
-      const color=nota.type==='note'?(NOTE_COLORS[nota.key]||'#888'):'#888';
-      const tc=nota.type==='note'?(NOTE_TEXT[nota.key]||'white'):'#fff';
-      const noteName=nota.type==='note'?NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]:'';
-      const altS=nota.type==='note'?altSym(nota.alt):'';
-      const octSuf=nota.type==='note'?(OCTAVAS[nota.oct]?.suffix||''):'';
-
-      const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-      g.setAttribute('id','ss-'+globalIdx);g.setAttribute('class','ss-note');
-      g.style.cursor='pointer';
-      g.addEventListener('click',()=>ssSetStart(globalIdx));
-
-      const ring=document.createElementNS('http://www.w3.org/2000/svg','rect');
-      ring.setAttribute('x',x-28);ring.setAttribute('y','0');
-      ring.setAttribute('width','56');ring.setAttribute('height',svgH);
-      ring.setAttribute('rx','5');ring.setAttribute('fill',color);
-      ring.setAttribute('opacity','0');ring.setAttribute('class','ss-ring');
-      g.appendChild(ring);
-
-      // Label above staff
-      if(nota.type==='note'){
-        const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-        lbl.setAttribute('x',x);lbl.setAttribute('y',LABEL_H-3);
-        lbl.setAttribute('text-anchor','middle');lbl.setAttribute('dominant-baseline','auto');
-        lbl.setAttribute('font-size','12');lbl.setAttribute('font-weight','900');
-        lbl.setAttribute('font-family','Nunito,sans-serif');lbl.setAttribute('fill',color);
-        lbl.textContent=altS+noteName+(octSuf?' '+octSuf:'');
-        g.appendChild(lbl);
+      // Tie
+      if(nota.tied&&i<allIdx.length-1){
+        const nx2=CLEF_W+(i+1)*SLOT+SLOT/2;
+        const ty=stemUp?ny+8:ny-8;
+        el('path',{d:'M'+(x+rx)+','+ty+' Q'+((x+nx2)/2)+','+(ty+(stemUp?8:-8))+' '+(nx2-rx)+','+ty,fill:'none',stroke:color,'stroke-width':1.5},g);
       }
-      svg.appendChild(g);
-    });
+    }
+  });
 
-    document.getElementById('ss-staff-scroll').appendChild(svg);
-    document.body.removeChild(tmp);
-  }catch(err){console.error('SS staff error:',err);}
+  staffScroll.appendChild(svg);
+  // Store xPos for scroll sync
+  SS.xPos=allIdx.map((_,i)=>CLEF_W+i*SLOT+SLOT/2);
 }
 
 function ssStop(){
