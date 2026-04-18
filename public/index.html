@@ -168,9 +168,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .vnote-dur{font-size:0.55rem;opacity:0.65;font-family:var(--mono);}
 .vnote-rest{background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;}
 
-/* STAFF — SVG shown at native pixel size, scrolls horizontally */
-.staff-wrap{background:white;border-radius:var(--radius-sm);margin:4px 6px 8px;border:1px solid var(--border);overflow-x:auto;overflow-y:visible;display:block;-webkit-overflow-scrolling:touch;width:calc(100% - 12px);box-sizing:border-box;}
-.staff-wrap svg{display:block;flex-shrink:0;}
+/* STAFF — SVG is responsive (width:100% height:auto), never clips */
+.staff-wrap{background:white;border-radius:var(--radius-sm);margin:4px 6px 8px;border:1px solid var(--border);display:block;overflow:visible;}
+.staff-wrap svg{display:block;width:100%;height:auto;}
 .svn-ring{transition:opacity 0.08s;}
 .svn-active .svn-ring{opacity:0.2;}
 
@@ -179,7 +179,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .compases-row .viewer-compas{margin-bottom:0;border:none;border-radius:0;border-right:2px solid var(--border);box-shadow:none;flex:1;min-width:0;overflow:visible;}
 .compases-row .viewer-compas:last-child{border-right:none;}
 
-/* SIMPLY SAX */
+/* VIEWER PROGRESS + LOOP BAR */
+.viewer-loop-bar{display:flex;align-items:center;gap:0.6rem;padding:0.4rem 1rem;background:var(--surface2);border-bottom:1.5px solid var(--border);}
+.viewer-loop-bar .ss-loop-label{font-size:0.68rem;color:var(--muted);font-weight:700;font-family:var(--mono);white-space:nowrap;}
+.viewer-loop-bar .ss-loop-bar-outer{flex:1;}
+.viewer-loop-bar .ss-btn{font-size:0.72rem;padding:0.25rem 0.55rem;}
 .ss-wrap{flex:1;display:flex;flex-direction:column;background:#0a0a16;overflow:hidden;}
 .ss-header{padding:0.5rem 1rem;background:#11112a;border-bottom:1px solid #2a2a4a;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;}
 .ss-note-lbl{font-size:1.5rem;font-weight:900;font-family:var(--font);min-width:80px;transition:color 0.1s;}
@@ -316,6 +320,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     </div>
     <button class="sound-btn on" id="sound-toggle" onclick="toggleSound()">🔊</button>
     <button class="fullscore-btn" onclick="openFullScore()">📄 Partitura completa</button>
+  </div>
+  <!-- Progress + loop bar for all modes -->
+  <div class="viewer-loop-bar" id="viewer-loop-bar">
+    <span class="ss-loop-label">Inicio:</span>
+    <div class="ss-loop-bar-outer" id="viewer-progress-bar">
+      <div class="ss-progress-fill" id="viewer-progress-fill" style="width:0%"></div>
+      <div class="ss-loop-region" id="viewer-loop-region" style="left:0%;width:100%;opacity:0.3"></div>
+      <div class="ss-handle" id="viewer-handle-start" style="left:0%"></div>
+      <div class="ss-handle" id="viewer-handle-end" style="left:100%"></div>
+    </div>
+    <button class="ss-btn" id="viewer-loop-btn" onclick="toggleViewerLoop()">⟳ Bucle</button>
   </div>
   <div class="mode-selector">
     <button class="mode-btn active" id="mode-btn-0" onclick="setMode(0)">🎨 Colores</button>
@@ -690,6 +705,7 @@ function setMode(mode){
   document.getElementById('viewer-wrap').style.display=isSimply?'none':'';
   document.getElementById('ss-wrap').style.display=isSimply?'flex':'none';
   document.getElementById('layout-bar-wrap').style.display=isSimply?'none':'';
+  document.getElementById('viewer-loop-bar').style.display=isSimply?'none':'flex';
   document.getElementById('viewer-legend').style.display=(mode===3||mode===4)?'none':'flex';
   document.getElementById('play-btn').onclick=isSimply?toggleSSPlayback:togglePlayback;
   if(isSimply)ssInit();
@@ -776,14 +792,16 @@ function renderCompasVex(compasData, compasStr, mode){
     const svg=tmp.querySelector('svg');
     if(!svg){document.body.removeChild(tmp);return null;}
 
-    // Fix: keep pixel dimensions exactly as VexFlow set them
+    // KEY FIX: set viewBox to native size, then use width:100% height:auto
+    // This makes SVG scale DOWN to fit any container without clipping
     const svgW=parseFloat(svg.getAttribute('width')||W);
     const svgH=parseFloat(svg.getAttribute('height')||H);
-    // Keep native pixel size — parent scrolls horizontally to fit
+    svg.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
+    svg.setAttribute('preserveAspectRatio','xMinYMin meet');
     svg.removeAttribute('width');
     svg.removeAttribute('height');
-    svg.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
-    svg.style.cssText=`display:block;width:${svgW}px;height:${svgH}px;min-height:${svgH}px;`;
+    // width:100% fills container, height:auto preserves aspect ratio = no clipping ever
+    svg.style.cssText=`display:block;width:100%;height:auto;min-height:80px;`;
 
     // Get X positions
     const xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
@@ -1021,9 +1039,10 @@ function openFullScore(){
 
       const svgW=parseFloat(svg.getAttribute('width')||W);
       const svgH=parseFloat(svg.getAttribute('height')||H);
-      svg.removeAttribute('width');svg.removeAttribute('height');
       svg.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
-      svg.style.cssText=`display:block;width:${svgW}px;height:${svgH}px;`;
+      svg.setAttribute('preserveAspectRatio','xMinYMin meet');
+      svg.removeAttribute('width');svg.removeAttribute('height');
+      svg.style.cssText=`display:block;width:100%;height:auto;`;
 
       // Get xPos
       const xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
@@ -1089,6 +1108,7 @@ const SS={
   loopStart:0,loopEnd:0,loopActive:false,
   metroOn:true,metroTimer:null,beatCount:0,nextBeatTime:0,
   timer:null,xPos:[],dragging:null,
+  startAudioTime:0,startWallTime:0,nextNoteWallTime:0,
 };
 
 function ssFlatNotes(){
@@ -1220,9 +1240,11 @@ function ssRenderStaff(p){
 
     const svgW=parseFloat(svg.getAttribute('width')||W);
     const svgH=parseFloat(svg.getAttribute('height')||H);
-    svg.removeAttribute('width');svg.removeAttribute('height');
     svg.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
-    svg.style.cssText=`display:block;width:${svgW}px;height:${svgH}px;min-height:${svgH}px;`;
+    svg.setAttribute('preserveAspectRatio','xMinYMin meet');
+    svg.removeAttribute('width');svg.removeAttribute('height');
+    // Fixed pixel width here because SS scrolls horizontally by design
+    svg.style.cssText=`display:block;width:${svgW}px;height:auto;min-height:${svgH}px;`;
 
     // Get xPos for scroll sync
     SS.xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
@@ -1283,22 +1305,36 @@ function ssStart(){
   if(SS.activeIdx<0||SS.activeIdx>=SS.notes.length)SS.activeIdx=SS.loopStart;
   const ctx=getAudioCtx();
   if(ctx.state==='suspended')ctx.resume();
-  const startTime=ctx.currentTime+0.05; // small buffer so metro and note align
-  if(SS.metroOn)ssStartMetro(startTime);
-  // Delay first note by same buffer so metro tick and note are in sync
+  // Both metro and notes start at same audio time
+  SS.startAudioTime=ctx.currentTime+0.05;
+  SS.startWallTime=performance.now()+50;
+  SS.nextNoteWallTime=SS.startWallTime;
+  if(SS.metroOn)ssStartMetro(SS.startAudioTime);
   SS.timer=setTimeout(()=>ssPlayNote(SS.activeIdx), 50);
 }
-function ssSetStart(idx){
-  ssStop();SS.activeIdx=idx;ssHighlight(idx);ssScrollToNote(idx);updateSSHUD(idx);
-}
+
 function ssPlayNote(idx){
   if(!SS.playing)return;
   const endIdx=SS.loopActive?SS.loopEnd:SS.notes.length-1;
-  if(idx>endIdx){if(SS.loopActive){ssPlayNote(SS.loopStart);}else{ssStop();}return;}
+  if(idx>endIdx){
+    if(SS.loopActive){
+      // Reset timing for loop
+      const ctx=getAudioCtx();
+      SS.startAudioTime=ctx.currentTime+0.02;
+      SS.startWallTime=performance.now()+20;
+      SS.nextNoteWallTime=SS.startWallTime;
+      SS.timer=setTimeout(()=>ssPlayNote(SS.loopStart),20);
+    }else{ssStop();}
+    return;
+  }
   SS.activeIdx=idx;
   ssHighlight(idx);ssScrollToNote(idx);updateSSHUD(idx);
   playNoteSound(SS.notes[idx].nota);
-  SS.timer=setTimeout(()=>ssPlayNote(idx+1),SS.notes[idx].dur_ms);
+
+  // Drift-compensated scheduling: track expected time, compensate for late callbacks
+  SS.nextNoteWallTime+=SS.notes[idx].dur_ms;
+  const drift=SS.nextNoteWallTime-performance.now();
+  SS.timer=setTimeout(()=>ssPlayNote(idx+1), Math.max(0,drift));
 }
 function ssHighlight(idx){
   document.querySelectorAll('.ss-active').forEach(el=>el.classList.remove('ss-active'));
@@ -1424,27 +1460,104 @@ function ssInitLoopBar(){
 //  PLAYBACK (modes 0-3)
 // ══════════════════════════════════════════════════
 function updateBPM(val){state.student.bpm=parseInt(val);document.getElementById('bpm-display').textContent=val+' BPM';}
+// Viewer loop state
+const VL={loopActive:false,loopStart:0,loopEnd:0,dragging:null,seq:[],nextWallTime:0};
+
+function toggleViewerLoop(){
+  VL.loopActive=!VL.loopActive;
+  document.getElementById('viewer-loop-btn').classList.toggle('on',VL.loopActive);
+  document.getElementById('viewer-loop-region').style.opacity=VL.loopActive?'1':'0.3';
+}
+
+function initViewerLoopBar(){
+  const bar=document.getElementById('viewer-progress-bar');if(!bar)return;
+  function posToIdx(clientX){
+    const rect=bar.getBoundingClientRect();
+    const pct=Math.max(0,Math.min(1,(clientX-rect.left)/rect.width));
+    return Math.round(pct*(VL.seq.length-1||1));
+  }
+  function getHandle(clientX){
+    if(!VL.seq.length)return'start';
+    const rect=bar.getBoundingClientRect();
+    const pct=(clientX-rect.left)/rect.width;
+    const sp=VL.loopStart/(VL.seq.length||1),ep=(VL.loopEnd+1)/(VL.seq.length||1);
+    return Math.abs(pct-sp)<Math.abs(pct-ep)?'start':'end';
+  }
+  bar.addEventListener('mousedown',e=>{VL.dragging=getHandle(e.clientX);});
+  document.addEventListener('mousemove',e=>{
+    if(!VL.dragging)return;
+    const idx=posToIdx(e.clientX);
+    if(VL.dragging==='start'){VL.loopStart=Math.min(idx,VL.loopEnd);if(state.student.playing){stopPlayback();startPlayback(VL.loopStart);}}
+    else VL.loopEnd=Math.max(idx,VL.loopStart);
+    updateViewerLoopBar();
+  });
+  document.addEventListener('mouseup',()=>{VL.dragging=null;});
+  bar.addEventListener('touchstart',e=>{VL.dragging=getHandle(e.touches[0].clientX);},{passive:true});
+  document.addEventListener('touchmove',e=>{
+    if(!VL.dragging)return;
+    const idx=posToIdx(e.touches[0].clientX);
+    if(VL.dragging==='start'){VL.loopStart=Math.min(idx,VL.loopEnd);if(state.student.playing){stopPlayback();startPlayback(VL.loopStart);}}
+    else VL.loopEnd=Math.max(idx,VL.loopStart);
+    updateViewerLoopBar();
+  },{passive:true});
+  document.addEventListener('touchend',()=>{VL.dragging=null;});
+}
+
+function updateViewerLoopBar(){
+  const total=VL.seq.length||1;
+  const sp=VL.loopStart/total*100,ep=(VL.loopEnd+1)/total*100;
+  const region=document.getElementById('viewer-loop-region');
+  const hs=document.getElementById('viewer-handle-start');
+  const he=document.getElementById('viewer-handle-end');
+  if(region){region.style.left=sp+'%';region.style.width=(ep-sp)+'%';}
+  if(hs)hs.style.left=sp+'%';
+  if(he)he.style.left=ep+'%';
+}
+
 function togglePlayback(){state.student.playing?stopPlayback():startPlayback();}
-function startPlayback(){
+
+function startPlayback(startIdx){
   const p=state.student.current;if(!p||!p.compases)return;
-  state.student.playing=true;document.getElementById('play-btn').textContent='⏹';
-  const seq=[];
+  // Build seq
+  VL.seq=[];
   p.compases.forEach((c,ci)=>{
     (c.notas||[]).forEach((nota,ni)=>{
       if(nota&&nota!=='skip'){
         const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
         const dot=nota.dot&&fig.dot_val,val=dot?fig.dot_val:fig.val;
-        seq.push({ci,ni,nota,dur_ms:val*(60000/state.student.bpm/4)});
+        VL.seq.push({ci,ni,nota,dur_ms:val*(60000/state.student.bpm/4)});
       }
     });
   });
-  let idx=0;
+  if(!VL.seq.length)return;
+  VL.loopEnd=VL.seq.length-1;
+  updateViewerLoopBar();
+
+  state.student.playing=true;
+  document.getElementById('play-btn').textContent='⏹';
+
+  let idx=startIdx!=null?startIdx:VL.loopStart;
+  VL.nextWallTime=performance.now();
+
   function playNext(){
-    if(!state.student.playing||idx>=seq.length){stopPlayback();return;}
-    const item=seq[idx];
+    if(!state.student.playing)return;
+    const endIdx=VL.loopActive?VL.loopEnd:VL.seq.length-1;
+    if(idx>endIdx){
+      if(VL.loopActive){idx=VL.loopStart;VL.nextWallTime=performance.now();}
+      else{stopPlayback();return;}
+    }
+    const item=VL.seq[idx];
     state.student.playPos={ci:item.ci,ni:item.ni};
-    highlightNote(item.ci,item.ni);playNoteSound(item.nota);
-    idx++;state.student.playTimer=setTimeout(playNext,item.dur_ms);
+    highlightNote(item.ci,item.ni);
+    playNoteSound(item.nota);
+    // Update progress
+    const pct=Math.round((idx/VL.seq.length)*100);
+    const fill=document.getElementById('viewer-progress-fill');
+    if(fill){fill.style.width=pct+'%';fill.style.background=item.nota.type==='note'?(NOTE_COLORS[item.nota.key]||'var(--accent)'):'var(--accent)';}
+    VL.nextWallTime+=item.dur_ms;
+    idx++;
+    const drift=VL.nextWallTime-performance.now();
+    state.student.playTimer=setTimeout(playNext,Math.max(0,drift));
   }
   playNext();
 }
@@ -1501,7 +1614,7 @@ function formatDate(iso){if(!iso)return'';return new Date(iso).toLocaleDateStrin
 
 document.addEventListener('DOMContentLoaded',()=>{
   renderNotePalette();renderAltButtons();renderFigurePalette();
-  ssInitLoopBar();
+  ssInitLoopBar();initViewerLoopBar();
 });
 </script>
 </body>
