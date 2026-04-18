@@ -169,10 +169,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .vnote-rest{background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;}
 
 /* STAFF */
-.staff-wrap{background:white;border-radius:var(--radius-sm);padding:0;margin:4px 6px 8px;overflow:visible;border:1px solid var(--border);display:block;width:calc(100% - 12px);}
-.staff-wrap svg{display:block;width:100%;height:auto;overflow:visible;}
+.staff-wrap{background:white;border-radius:var(--radius-sm);margin:4px 6px 8px;border:1px solid var(--border);overflow:hidden;display:block;}
+.staff-wrap svg{display:block;width:100%;height:auto;}
 .svn-ring{transition:opacity 0.08s;}
 .svn-active .svn-ring{opacity:0.2;}
+/* SIMPLY PIANO MODE */
+.simply-wrap{flex:1;display:flex;flex-direction:column;background:#0d0d1a;overflow:hidden;}
+.simply-stage{flex:1;position:relative;overflow:hidden;min-height:220px;}
+.simply-canvas{position:absolute;top:0;left:0;width:100%;height:100%;}
+.simply-info{padding:0.6rem 1rem;background:#12122a;border-top:1px solid #2a2a4a;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;}
+.simply-note-display{font-size:1.6rem;font-weight:900;font-family:var(--font);min-width:70px;text-align:center;transition:color 0.1s;}
+.simply-progress{flex:1;height:5px;background:#2a2a4a;border-radius:3px;overflow:hidden;min-width:80px;}
+.simply-bar{height:100%;border-radius:3px;transition:width 0.15s linear;}
+.simply-compas-lbl{font-size:0.75rem;color:#7a7a9a;font-family:var(--mono);white-space:nowrap;}
 
 /* Multi-compas row */
 .compases-row{display:flex;gap:0;margin-bottom:0.75rem;border:1.5px solid var(--border);border-radius:var(--radius);overflow:visible;box-shadow:var(--shadow);}
@@ -306,10 +315,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <button class="mode-btn" id="mode-btn-1" onclick="setMode(1)">🔤 Colores+letras</button>
     <button class="mode-btn" id="mode-btn-2" onclick="setMode(2)">⚡ Paralela</button>
     <button class="mode-btn" id="mode-btn-3" onclick="setMode(3)">🎵 Pentagrama</button>
+    <button class="mode-btn" id="mode-btn-4" onclick="setMode(4)">🎹 Simply Piano</button>
   </div>
 
   <!-- COMPASES POR LÍNEA -->
-  <div class="layout-bar">
+  <div class="layout-bar" id="layout-bar-wrap">
     <span class="layout-label">Compases por línea:</span>
     <button class="layout-btn active" id="lay-btn-1" onclick="setLayout(1)">1</button>
     <button class="layout-btn" id="lay-btn-2" onclick="setLayout(2)">2</button>
@@ -329,6 +339,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
 
   <div class="viewer-wrap" id="viewer-wrap"></div>
+  <div class="simply-wrap" id="simply-wrap" style="display:none;">
+    <div class="simply-stage" id="simply-stage">
+      <canvas class="simply-canvas" id="simply-canvas"></canvas>
+    </div>
+    <div class="simply-info">
+      <div class="simply-note-display" id="simply-note-display">—</div>
+      <div class="simply-progress"><div class="simply-bar" id="simply-bar" style="width:0%;background:var(--accent)"></div></div>
+      <div class="simply-compas-lbl" id="simply-compas-lbl">Compás 1</div>
+    </div>
+  </div>
 </div>
 
 <!-- FULL SCORE OVERLAY -->
@@ -675,10 +695,16 @@ async function openPartitura(id){
   setMode(0);goTo('student-view');
 }
 function setMode(mode){
-  stopPlayback();state.student.mode=mode;
-  for(let i=0;i<4;i++)document.getElementById('mode-btn-'+i).classList.toggle('active',i===mode);
-  document.getElementById('viewer-legend').style.display=mode===3?'none':'flex';
-  renderViewer();
+  stopPlayback();stopSimplyPiano();
+  state.student.mode=mode;
+  for(let i=0;i<5;i++){const b=document.getElementById('mode-btn-'+i);if(b)b.classList.toggle('active',i===mode);}
+  document.getElementById('viewer-legend').style.display=(mode===3||mode===4)?'none':'flex';
+  const isSimply=(mode===4);
+  document.getElementById('viewer-wrap').style.display=isSimply?'none':'';
+  document.getElementById('simply-wrap').style.display=isSimply?'flex':'none';
+  document.getElementById('layout-bar-wrap').style.display=isSimply?'none':'';
+  if(isSimply){ initSimplyPiano(); }
+  else { renderViewer(); }
 }
 function setLayout(n){
   state.student.layout=n;
@@ -833,6 +859,17 @@ function renderVexFlowStaff(compasData,compasStr,divEl,mode){
     new Formatter().joinVoices([voice]).format([voice], W - 90);
     voice.draw(ctx, stave);
 
+    // ── LIGADURAS (StaveTie) ──
+    try{
+      const {StaveTie}=Vex.Flow;
+      for(let i=0;i<notas.length-1;i++){
+        if(notas[i].tied && notas[i+1] && notas[i].key===notas[i+1].key && notas[i].oct===notas[i+1].oct){
+          const tie=new StaveTie({first_note:vexNotes[i],last_note:vexNotes[i+1],first_indices:[0],last_indices:[0]});
+          tie.setContext(ctx).draw();
+        }
+      }
+    }catch(e){}
+
     // Get the SVG VexFlow generated
     const vexSvg = vexDiv.querySelector('svg');
     if(!vexSvg){ document.body.removeChild(vexDiv); return; }
@@ -957,7 +994,283 @@ function renderVexFlowStaff(compasData,compasStr,divEl,mode){
 
 
 
-// ═══════════════════ FULL SCORE VIEW ═══════════════════
+// ═══════════════════ SIMPLY PIANO ENGINE ═══════════════════
+let simplyState = {
+  animFrame: null,
+  notes: [],       // flat array of {nota, ci, ni, dur_ms, x (target), color}
+  scrollX: 0,      // current scroll position in px
+  targetX: 0,      // target scroll (moves to active note)
+  activeIdx: -1,
+  playing: false,
+  timer: null,
+  startTime: null,
+};
+
+const SP_NOTE_W   = 64;   // pixels per note slot
+const SP_CURSOR_X = 120;  // cursor position from left (fixed)
+const SP_STAFF_Y  = 100;  // staff top Y on canvas
+const SP_LS       = 10;   // line spacing
+const SP_STAFF_H  = 4*SP_LS;
+const SP_PAD_TOP  = 36;
+const SP_PAD_BOT  = 30;
+const SP_CANVAS_H = SP_STAFF_Y + SP_PAD_TOP + SP_STAFF_H + SP_PAD_BOT;
+
+// Staff step mapping (same as renderVexFlowStaff)
+const SP_STEPS = {
+  'do-0':10,'re-0':9,'mi-0':8,'fa-0':7,'sol-0':6,'la-0':5,'si-0':4,
+  'do-1':3,'re-1':2,'mi-1':1,'fa-1':0,'sol-1':-1,'la-1':-2,'si-1':-3,
+  'do-2':-4,'re-2':-5,'mi-2':-6,'fa-2':-7,'sol-2':-8,
+};
+
+function stepToCanvasY(step){
+  return SP_STAFF_Y + SP_PAD_TOP + step*(SP_LS/2);
+}
+
+function initSimplyPiano(){
+  const p = state.student.current;
+  if(!p||!p.compases) return;
+
+  // Build flat note list with timing
+  simplyState.notes = [];
+  p.compases.forEach((c,ci)=>{
+    (c.notas||[]).forEach((nota,ni)=>{
+      if(nota && nota!=='skip'){
+        const fig = FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+        const dot = nota.dot && fig.dot_val;
+        const val = dot ? fig.dot_val : fig.val;
+        const dur_ms = val*(60000/state.student.bpm/4);
+        simplyState.notes.push({nota, ci, ni, dur_ms,
+          color: nota.type==='note'?(NOTE_COLORS[nota.key]||'#888'):'#444',
+          step: nota.type==='note'?(SP_STEPS[`${nota.key}-${nota.oct}`]??2):2,
+        });
+      }
+    });
+  });
+
+  simplyState.scrollX = 0;
+  simplyState.targetX = 0;
+  simplyState.activeIdx = -1;
+  simplyState.playing = false;
+
+  const canvas = document.getElementById('simply-canvas');
+  const stage  = document.getElementById('simply-stage');
+  canvas.width  = stage.offsetWidth||400;
+  canvas.height = SP_CANVAS_H;
+  stage.style.height = SP_CANVAS_H+'px';
+
+  document.getElementById('simply-note-display').textContent='—';
+  document.getElementById('simply-note-display').style.color='#7a7a9a';
+  document.getElementById('simply-bar').style.width='0%';
+  document.getElementById('simply-compas-lbl').textContent='Compás 1';
+
+  drawSimplyFrame();
+  // Override play button for this mode
+  document.getElementById('play-btn').onclick = toggleSimplyPlayback;
+}
+
+function stopSimplyPiano(){
+  if(simplyState.animFrame){ cancelAnimationFrame(simplyState.animFrame); simplyState.animFrame=null; }
+  clearTimeout(simplyState.timer);
+  simplyState.playing=false;
+  simplyState.activeIdx=-1;
+  // Restore normal play button
+  document.getElementById('play-btn').onclick = togglePlayback;
+  document.getElementById('play-btn').textContent='▶';
+}
+
+function toggleSimplyPlayback(){
+  if(simplyState.playing) pauseSimplyPiano();
+  else startSimplyPiano();
+}
+
+function pauseSimplyPiano(){
+  simplyState.playing=false;
+  clearTimeout(simplyState.timer);
+  document.getElementById('play-btn').textContent='▶';
+}
+
+function startSimplyPiano(){
+  if(!simplyState.notes.length) return;
+  simplyState.playing=true;
+  document.getElementById('play-btn').textContent='⏹';
+  if(simplyState.activeIdx < 0) simplyState.activeIdx=0;
+  playSimplyNote(simplyState.activeIdx);
+}
+
+function playSimplyNote(idx){
+  if(!simplyState.playing || idx>=simplyState.notes.length){ endSimplyPiano(); return; }
+  simplyState.activeIdx=idx;
+  const item=simplyState.notes[idx];
+  simplyState.targetX = SP_CURSOR_X - (idx*SP_NOTE_W + SP_NOTE_W/2);
+
+  // Update HUD
+  const total=simplyState.notes.length;
+  const pct=Math.round((idx/total)*100);
+  document.getElementById('simply-bar').style.width=pct+'%';
+  document.getElementById('simply-bar').style.background=item.color;
+  document.getElementById('simply-compas-lbl').textContent=`Compás ${item.ci+1}`;
+  if(item.nota.type==='note'){
+    const name=NOTE_NAMES[NOTE_KEYS.indexOf(item.nota.key)];
+    const alt=altSym(item.nota.alt);
+    document.getElementById('simply-note-display').textContent=alt+name;
+    document.getElementById('simply-note-display').style.color=item.color;
+  } else {
+    document.getElementById('simply-note-display').textContent='𝄽';
+    document.getElementById('simply-note-display').style.color='#7a7a9a';
+  }
+
+  playNoteSound(item.nota);
+  simplyState.timer=setTimeout(()=>playSimplyNote(idx+1), item.dur_ms);
+}
+
+function endSimplyPiano(){
+  simplyState.playing=false;
+  simplyState.activeIdx=-1;
+  document.getElementById('play-btn').textContent='▶';
+  document.getElementById('simply-bar').style.width='100%';
+}
+
+function drawSimplyFrame(){
+  const canvas=document.getElementById('simply-canvas');
+  if(!canvas){ simplyState.animFrame=null; return; }
+  if(state.student.mode!==4){ simplyState.animFrame=null; return; }
+
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+
+  // Smooth scroll
+  simplyState.scrollX += (simplyState.targetX - simplyState.scrollX) * 0.12;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Background
+  ctx.fillStyle='#0d0d1a';
+  ctx.fillRect(0,0,W,H);
+
+  // ── Staff lines ──
+  ctx.strokeStyle='rgba(255,255,255,0.25)';
+  ctx.lineWidth=1;
+  for(let l=0;l<5;l++){
+    const y=stepToCanvasY(l*2); // steps 0,2,4,6,8 = 5 lines
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+  }
+
+  // ── Cursor line ──
+  const grad=ctx.createLinearGradient(SP_CURSOR_X-2,0,SP_CURSOR_X+2,0);
+  grad.addColorStop(0,'rgba(124,107,255,0)');
+  grad.addColorStop(0.5,'rgba(124,107,255,0.9)');
+  grad.addColorStop(1,'rgba(124,107,255,0)');
+  ctx.fillStyle=grad;
+  ctx.fillRect(SP_CURSOR_X-2,0,4,H);
+
+  // ── Notes ──
+  const notes=simplyState.notes;
+  notes.forEach((item,i)=>{
+    const noteX = simplyState.scrollX + i*SP_NOTE_W + SP_NOTE_W/2;
+    if(noteX < -SP_NOTE_W || noteX > W+SP_NOTE_W) return; // cull offscreen
+
+    const isActive=(i===simplyState.activeIdx);
+    const isPast=(i<simplyState.activeIdx);
+    const nota=item.nota;
+    const color=item.color;
+
+    if(nota.type==='rest'){
+      ctx.fillStyle=isPast?'rgba(120,120,120,0.4)':'rgba(180,180,180,0.7)';
+      ctx.font='18px serif';
+      ctx.textAlign='center';
+      ctx.fillText('𝄼',noteX,stepToCanvasY(2));
+      return;
+    }
+
+    const ny=stepToCanvasY(item.step);
+    const alpha=isPast?0.35:1;
+    const r=isActive?10:7;
+
+    // Ledger lines
+    ctx.strokeStyle=`rgba(255,255,255,0.4)`;
+    ctx.lineWidth=1.2;
+    if(item.step<0){
+      for(let s=Math.ceil(item.step/2)*2;s<0;s+=2){
+        const ly=stepToCanvasY(s);
+        ctx.beginPath();ctx.moveTo(noteX-14,ly);ctx.lineTo(noteX+14,ly);ctx.stroke();
+      }
+    }
+    if(item.step>8){
+      for(let s=10;s<=item.step;s+=2){
+        const ly=stepToCanvasY(s);
+        ctx.beginPath();ctx.moveTo(noteX-14,ly);ctx.lineTo(noteX+14,ly);ctx.stroke();
+      }
+    }
+
+    // Glow for active note
+    if(isActive){
+      ctx.save();
+      ctx.shadowColor=color;
+      ctx.shadowBlur=20;
+      ctx.fillStyle=color;
+      ctx.beginPath();ctx.ellipse(noteX,ny,r+2,r,0,0,Math.PI*2);ctx.fill();
+      ctx.restore();
+    }
+
+    // Note head
+    ctx.globalAlpha=alpha;
+    const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+    if(fig.id==='redonda'){
+      ctx.strokeStyle=color;ctx.lineWidth=2;
+      ctx.beginPath();ctx.ellipse(noteX,ny,r,r-2,0,0,Math.PI*2);ctx.stroke();
+    } else if(fig.id==='blanca'){
+      ctx.strokeStyle=color;ctx.lineWidth=2;
+      ctx.beginPath();ctx.ellipse(noteX,ny,r,r-2,0,0,Math.PI*2);ctx.stroke();
+      ctx.fillStyle='#0d0d1a';
+      ctx.beginPath();ctx.ellipse(noteX,ny,r-3,r-4,0,0,Math.PI*2);ctx.fill();
+    } else {
+      ctx.fillStyle=color;
+      ctx.beginPath();ctx.ellipse(noteX,ny,r,r-2,0,0,Math.PI*2);ctx.fill();
+    }
+
+    // Stem
+    if(fig.id!=='redonda'){
+      ctx.strokeStyle=color;ctx.lineWidth=1.5;
+      if(item.step>=2){
+        ctx.beginPath();ctx.moveTo(noteX+r,ny);ctx.lineTo(noteX+r,ny-30);ctx.stroke();
+        if(fig.id==='corchea'||fig.id==='semicorchea'){
+          ctx.beginPath();ctx.moveTo(noteX+r,ny-30);ctx.bezierCurveTo(noteX+r+14,ny-22,noteX+r+10,ny-14,noteX+r+6,ny-10);ctx.stroke();
+        }
+        if(fig.id==='semicorchea'){
+          ctx.beginPath();ctx.moveTo(noteX+r,ny-20);ctx.bezierCurveTo(noteX+r+14,ny-12,noteX+r+10,ny-4,noteX+r+6,ny);ctx.stroke();
+        }
+      } else {
+        ctx.beginPath();ctx.moveTo(noteX-r,ny);ctx.lineTo(noteX-r,ny+30);ctx.stroke();
+        if(fig.id==='corchea'||fig.id==='semicorchea'){
+          ctx.beginPath();ctx.moveTo(noteX-r,ny+30);ctx.bezierCurveTo(noteX-r+14,ny+22,noteX-r+10,ny+14,noteX-r+6,ny+10);ctx.stroke();
+        }
+        if(fig.id==='semicorchea'){
+          ctx.beginPath();ctx.moveTo(noteX-r,ny+20);ctx.bezierCurveTo(noteX-r+14,ny+12,noteX-r+10,ny+4,noteX-r+6,ny);ctx.stroke();
+        }
+      }
+    }
+
+    // Note name label above/below staff
+    ctx.globalAlpha=isActive?1:alpha*0.7;
+    ctx.fillStyle=color;
+    ctx.font=`${isActive?'900 15px':'700 12px'} Nunito,sans-serif`;
+    ctx.textAlign='center';
+    const lblY=stepToCanvasY(0)-SP_PAD_TOP+10;
+    ctx.fillText(altSym(nota.alt)+NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)],noteX,lblY);
+
+    ctx.globalAlpha=1;
+  });
+
+  // ── Fade edges ──
+  const fadeL=ctx.createLinearGradient(0,0,80,0);
+  fadeL.addColorStop(0,'#0d0d1a');fadeL.addColorStop(1,'transparent');
+  ctx.fillStyle=fadeL;ctx.fillRect(0,0,80,H);
+  const fadeR=ctx.createLinearGradient(W-60,0,W,0);
+  fadeR.addColorStop(0,'transparent');fadeR.addColorStop(1,'#0d0d1a');
+  ctx.fillStyle=fadeR;ctx.fillRect(W-60,0,60,H);
+
+  simplyState.animFrame=requestAnimationFrame(drawSimplyFrame);
+}
 function openFullScore(){
   const p=state.student.current;
   if(!p){showToast('Abre una partitura primero');return;}
@@ -1033,7 +1346,7 @@ function startPlayback(){
 
 function stopPlayback(){
   state.student.playing=false;clearTimeout(state.student.playTimer);state.student.playPos=null;
-  const btn=document.getElementById('play-btn');if(btn)btn.textContent='▶';
+  const btn=document.getElementById('play-btn');if(btn&&state.student.mode!==4)btn.textContent='▶';
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
   document.querySelectorAll('.svn-active').forEach(el=>el.classList.remove('svn-active'));
 }
