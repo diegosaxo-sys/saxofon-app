@@ -715,10 +715,10 @@ function renderCompasVex(compasData, compasStr, mode){
 
   try{
     const {Renderer,Stave,StaveNote,Voice,Formatter,Accidental,Dot,StaveTie}=Vex.Flow;
-    const LABEL_H=showColors?20:18;
-    const BLOCK_H=showColors?52:0;
-    const GAP=showColors?8:0;
-    const PAD_TOP=30,PAD_BOT=24,VEX_H=40;
+    const LABEL_H=showColors?18:16;
+    const BLOCK_H=showColors?44:0;
+    const GAP=showColors?5:0;
+    const PAD_TOP=14,PAD_BOT=14,VEX_H=40;
     const NOTE_SLOT=70,CLEF_W=58;
     const W=Math.max(400,CLEF_W+notas.length*NOTE_SLOT+30);
     const STAFF_TOP=LABEL_H+BLOCK_H+GAP+PAD_TOP;
@@ -928,22 +928,155 @@ function openFullScore(){
   document.getElementById('fullscore-title').textContent=p.titulo||'Partitura';
   const content=document.getElementById('fullscore-content');
   content.innerHTML='';
+
   const titleEl=document.createElement('div');
   titleEl.style.cssText='text-align:center;margin-bottom:1.5rem;';
   titleEl.innerHTML=`<h1 style="font-size:1.6rem;font-weight:900;color:#2C2416;font-family:Nunito,sans-serif">${escHtml(p.titulo||'Sin título')}</h1><p style="color:#7A6E5F;font-size:0.9rem;font-family:Nunito,sans-serif">${INSTRUMENT_NAMES[p.instrument]||'Alto'} · ${p.compas}</p>`;
   content.appendChild(titleEl);
+
   const compasStr=p.compas||'4/4';
-  p.compases.forEach((c,ci)=>{
-    const wrapper=document.createElement('div');
-    wrapper.style.cssText='margin-bottom:8px;border:1px solid #C8BFA8;border-radius:8px;overflow-x:auto;overflow-y:visible;background:white;-webkit-overflow-scrolling:touch;';
-    const header=document.createElement('div');
-    header.style.cssText='font-size:0.65rem;color:#7A6E5F;font-family:Space Mono,monospace;padding:2px 8px;border-bottom:1px solid #EDE8DC;font-weight:700;';
-    header.textContent=`Compás ${ci+1} — ${compasStr}`;
-    wrapper.appendChild(header);
-    const svg=renderCompasVex({...c,_ci:ci},compasStr,3);
-    if(svg){wrapper.appendChild(svg);}
-    content.appendChild(wrapper);
-  });
+  const PER_ROW=4;
+
+  // Build rows of compases sharing a single continuous VexFlow stave
+  try{
+    const {Renderer,Stave,StaveNote,Voice,Formatter,Accidental,Dot,StaveTie}=Vex.Flow;
+    const LABEL_H=16,PAD_TOP=14,PAD_BOT=14,VEX_H=40;
+    const NOTE_SLOT=62,CLEF_W=56;
+    const [ns,ds]=compasStr.split('/');
+    const totalQ=parseInt(ns)*(4/parseInt(ds));
+
+    for(let rowStart=0;rowStart<p.compases.length;rowStart+=PER_ROW){
+      const rowCompases=p.compases.slice(rowStart,Math.min(rowStart+PER_ROW,p.compases.length));
+
+      // Count total notes in this row
+      let rowNotasIdx=[];
+      rowCompases.forEach((c,rowCi)=>{
+        (c.notas||[]).forEach((nota,ni)=>{
+          if(nota&&nota!=='skip') rowNotasIdx.push({nota,ni,ci:rowStart+rowCi,rowCi});
+        });
+      });
+      if(!rowNotasIdx.length)continue;
+
+      const W=Math.max(400,CLEF_W+rowNotasIdx.length*NOTE_SLOT+40);
+      const STAFF_TOP=LABEL_H+PAD_TOP;
+      const H=STAFF_TOP+VEX_H+PAD_BOT;
+
+      const tmp=document.createElement('div');
+      tmp.style.cssText='position:absolute;visibility:hidden;left:0;top:0;';
+      document.body.appendChild(tmp);
+
+      const renderer=new Renderer(tmp,Renderer.Backends.SVG);
+      renderer.resize(W,H);
+      const ctx=renderer.getContext();
+
+      // Draw stave with clef only on first row
+      const stave=new Stave(10,STAFF_TOP,W-20);
+      if(rowStart===0) stave.addClef('treble').addTimeSignature(compasStr);
+      else stave.addClef('treble');
+      stave.setContext(ctx).draw();
+
+      const notas=rowNotasIdx.map(x=>x.nota);
+      const rowTotalVal=notas.reduce((s,nota)=>{
+        const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+        const dot=nota.dot&&fig.dot_val;return s+(dot?fig.dot_val:fig.val);
+      },0);
+      const rowTotalQ=rowTotalVal/4;
+
+      const vexNotes=notas.map(nota=>{
+        if(nota.type==='rest'){
+          const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+          const sn=new StaveNote({keys:['b/4'],duration:fig.vex+'r'});
+          if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});return sn;
+        }
+        const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+        const vk=VEX_NOTE_MAP[nota.key]||'c';
+        const oct=(nota.oct||0)+4;
+        const acc=nota.alt==='sharp'?'#':nota.alt==='flat'?'b':'';
+        const color=NOTE_COLORS[nota.key]||'#000';
+        const sn=new StaveNote({keys:[`${vk}${acc}/${oct}`],duration:fig.vex,stem_direction:oct>=5?-1:1});
+        sn.setStyle({fillStyle:color,strokeStyle:color});
+        if(nota.alt==='sharp')sn.addModifier(new Accidental('#'));
+        else if(nota.alt==='flat')sn.addModifier(new Accidental('b'));
+        if(nota.dot&&fig.dot_val)Dot.buildAndAttach([sn],{all:true});
+        return sn;
+      });
+
+      const voice=new Voice({num_beats:rowTotalQ,beat_value:4});
+      voice.setMode(Voice.Mode.SOFT);
+      voice.addTickables(vexNotes);
+      new Formatter().joinVoices([voice]).format([voice],W-CLEF_W-30);
+      voice.draw(ctx,stave);
+
+      // Ties
+      try{
+        for(let i=0;i<notas.length-1;i++){
+          const a=notas[i],b=notas[i+1];
+          if(a.tied&&b&&a.key===b.key&&a.oct===b.oct)
+            new StaveTie({first_note:vexNotes[i],last_note:vexNotes[i+1],first_indices:[0],last_indices:[0]}).setContext(ctx).draw();
+        }
+      }catch(e){}
+
+      const svg=tmp.querySelector('svg');
+      if(!svg){document.body.removeChild(tmp);continue;}
+
+      const svgW=parseFloat(svg.getAttribute('width')||W);
+      const svgH=parseFloat(svg.getAttribute('height')||H);
+      svg.removeAttribute('width');svg.removeAttribute('height');
+      svg.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
+      svg.style.cssText=`display:block;width:${svgW}px;height:${svgH}px;`;
+
+      // Get xPos
+      const xPos=vexNotes.map(sn=>{try{return sn.getAbsoluteX();}catch(e){return null;}});
+      for(let i=0;i<xPos.length;i++)if(!xPos[i])xPos[i]=CLEF_W+10+(i+0.5)*((W-CLEF_W-20)/xPos.length);
+
+      // Draw barlines between compases + note labels
+      let prevRowCi=-1;
+      rowNotasIdx.forEach(({nota,rowCi,ci},i)=>{
+        const x=xPos[i];if(!x)return;
+        // Barline at start of each compas (except first)
+        if(rowCi!==prevRowCi&&i>0){
+          const bl=document.createElementNS('http://www.w3.org/2000/svg','line');
+          bl.setAttribute('x1',x-NOTE_SLOT/2);bl.setAttribute('y1',STAFF_TOP);
+          bl.setAttribute('x2',x-NOTE_SLOT/2);bl.setAttribute('y2',STAFF_TOP+VEX_H);
+          bl.setAttribute('stroke','#444');bl.setAttribute('stroke-width','1.2');
+          svg.appendChild(bl);
+          const cn=document.createElementNS('http://www.w3.org/2000/svg','text');
+          cn.setAttribute('x',x-NOTE_SLOT/2+3);cn.setAttribute('y',STAFF_TOP-3);
+          cn.setAttribute('font-size','8');cn.setAttribute('font-family','Nunito,sans-serif');cn.setAttribute('fill','#888');
+          cn.textContent=ci+1;svg.appendChild(cn);
+        }
+        prevRowCi=rowCi;
+        // Note label
+        if(nota.type==='note'){
+          const color=NOTE_COLORS[nota.key]||'#000';
+          const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+          lbl.setAttribute('x',x);lbl.setAttribute('y',STAFF_TOP-4);
+          lbl.setAttribute('text-anchor','middle');lbl.setAttribute('dominant-baseline','auto');
+          lbl.setAttribute('font-size','10');lbl.setAttribute('font-weight','900');
+          lbl.setAttribute('font-family','Nunito,sans-serif');lbl.setAttribute('fill',color);
+          lbl.textContent=altSym(nota.alt)+NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]+(OCTAVAS[nota.oct]?.suffix||'');
+          svg.appendChild(lbl);
+        }
+      });
+
+      // Row label
+      const rl=document.createElementNS('http://www.w3.org/2000/svg','text');
+      rl.setAttribute('x','14');rl.setAttribute('y',STAFF_TOP-3);
+      rl.setAttribute('font-size','8');rl.setAttribute('font-family','Nunito,sans-serif');rl.setAttribute('fill','#aaa');
+      rl.textContent=`C${rowStart+1}–${Math.min(rowStart+PER_ROW,p.compases.length)}`;
+      svg.appendChild(rl);
+
+      const wrapper=document.createElement('div');
+      wrapper.style.cssText='margin-bottom:6px;border:1px solid #C8BFA8;border-radius:6px;overflow-x:auto;overflow-y:visible;background:white;-webkit-overflow-scrolling:touch;';
+      wrapper.appendChild(svg);
+      content.appendChild(wrapper);
+      document.body.removeChild(tmp);
+    }
+  }catch(err){
+    content.innerHTML+='<p style="color:#999;padding:1rem">Error al renderizar la partitura completa.</p>';
+    console.error(err);
+  }
+
   document.getElementById('fullscore-overlay').classList.add('open');
 }
 function closeFullScore(){document.getElementById('fullscore-overlay').classList.remove('open');}
@@ -1004,7 +1137,7 @@ function ssRenderStaff(p){
     const {Renderer,Stave,StaveNote,Voice,Formatter,Accidental,Dot,StaveTie}=Vex.Flow;
     const CLEF_W=58,NOTE_SLOT=72;
     const W=CLEF_W+allNotasIdx.length*NOTE_SLOT+40;
-    const STAFF_Y=54,VEX_H=40,PAD_BOT=24,LABEL_H=18;
+    const STAFF_Y=40,VEX_H=40,PAD_BOT=16,LABEL_H=16;
     const H=LABEL_H+STAFF_Y+VEX_H+PAD_BOT;
 
     const tmp=document.createElement('div');
@@ -1148,8 +1281,12 @@ function ssStart(){
   if(!SS.notes.length)return;
   SS.playing=true;document.getElementById('play-btn').textContent='⏹';
   if(SS.activeIdx<0||SS.activeIdx>=SS.notes.length)SS.activeIdx=SS.loopStart;
-  if(SS.metroOn)ssStartMetro();
-  ssPlayNote(SS.activeIdx);
+  const ctx=getAudioCtx();
+  if(ctx.state==='suspended')ctx.resume();
+  const startTime=ctx.currentTime+0.05; // small buffer so metro and note align
+  if(SS.metroOn)ssStartMetro(startTime);
+  // Delay first note by same buffer so metro tick and note are in sync
+  SS.timer=setTimeout(()=>ssPlayNote(SS.activeIdx), 50);
 }
 function ssSetStart(idx){
   ssStop();SS.activeIdx=idx;ssHighlight(idx);ssScrollToNote(idx);updateSSHUD(idx);
@@ -1208,30 +1345,30 @@ function ssStopMetro(){
   if(SS.metroTimer){clearTimeout(SS.metroTimer);SS.metroTimer=null;}
   SS.beatCount=0;SS.nextBeatTime=0;
 }
-function ssStartMetro(){
+function ssStartMetro(startAtAudioTime){
   ssStopMetro();
   const ctx=getAudioCtx();
   if(ctx.state==='suspended')ctx.resume();
   const beatSec=60/state.student.bpm;
-  SS.nextBeatTime=ctx.currentTime+0.05; // start slightly ahead
+  // Sync metro to exact audio time when first note plays
+  SS.nextBeatTime=startAtAudioTime||ctx.currentTime;
   SS.beatCount=0;
   function scheduleBeat(){
     if(!SS.playing||!SS.metroOn)return;
     const ctx=getAudioCtx();
-    // Schedule all beats within next 200ms lookahead
-    while(SS.nextBeatTime<ctx.currentTime+0.2){
+    while(SS.nextBeatTime<ctx.currentTime+0.25){
       const isDown=(SS.beatCount%getSSBeatsPerBar()===0);
       const osc=ctx.createOscillator(),gain=ctx.createGain();
       osc.type='square';
       osc.frequency.value=isDown?1400:900;
-      gain.gain.setValueAtTime(isDown?0.15:0.08,SS.nextBeatTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001,SS.nextBeatTime+0.04);
+      gain.gain.setValueAtTime(isDown?0.14:0.07,SS.nextBeatTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001,SS.nextBeatTime+0.035);
       osc.connect(gain);gain.connect(ctx.destination);
-      osc.start(SS.nextBeatTime);osc.stop(SS.nextBeatTime+0.045);
+      osc.start(SS.nextBeatTime);osc.stop(SS.nextBeatTime+0.04);
       SS.nextBeatTime+=beatSec;
       SS.beatCount++;
     }
-    SS.metroTimer=setTimeout(scheduleBeat,100); // check every 100ms
+    SS.metroTimer=setTimeout(scheduleBeat,100);
   }
   scheduleBeat();
 }
