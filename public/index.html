@@ -1230,14 +1230,34 @@ function ssStop(){
 }
 function toggleSSPlayback(){SS.playing?ssStop():ssStart();}
 function ssSetStart(idx){
-  // Click on a note in Simply Sax — jump to that position
   SS.activeIdx=idx;
   ssHighlight(idx);
   ssScrollToNote(idx);
   updateSSHUD(idx);
-  // If already playing, restart from this position
   if(SS.playing){ ssStop(); setTimeout(ssStart,50); }
 }
+
+function ssBeatOffset(startIdx){
+  // Calculate which beat within the bar the note at startIdx falls on
+  const p=state.student.current; if(!p) return 0;
+  const item=SS.notes[startIdx]; if(!item) return 0;
+  const c=p.compases[item.ci]; if(!c) return 0;
+  const compasStr=p.compas||'4/4';
+  const[n]=compasStr.split('/');
+  const bpb=parseInt(n)||4;
+  // Count beat-slots before this note's position in its compas
+  let slots=0;
+  for(let k=0;k<item.ni;k++){
+    const nota=c.notas[k];
+    if(nota&&nota!=='skip'){
+      const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+      const dot=nota.dot&&fig.dot_val;
+      slots+=(dot?fig.dot_val:fig.val);
+    }
+  }
+  return Math.round(slots/4)%bpb;
+}
+
 function ssStart(){
   if(!SS.notes.length)return;
   SS.playing=true;document.getElementById('play-btn').textContent='⏹';
@@ -1246,8 +1266,8 @@ function ssStart(){
   if(ctx.state==='suspended')ctx.resume();
   SS.audioStartTime=ctx.currentTime+0.05;
   SS.noteScheduleTime=SS.audioStartTime;
-  // Use global metro (synced with notes)
-  startGlobalMetro(SS.audioStartTime);
+  // Start metro with correct beat offset so accent aligns with bar position
+  startGlobalMetro(SS.audioStartTime, ssBeatOffset(SS.activeIdx));
   ssScheduleNotes(SS.activeIdx);
 }
 
@@ -1259,7 +1279,8 @@ function ssScheduleNotes(idx){
       const ctx=getAudioCtx();
       SS.audioStartTime=ctx.currentTime+0.02;
       SS.noteScheduleTime=SS.audioStartTime;
-      stopGlobalMetro();startGlobalMetro(SS.audioStartTime);
+      stopGlobalMetro();
+      startGlobalMetro(SS.audioStartTime, ssBeatOffset(SS.loopStart));
       setTimeout(()=>ssScheduleNotes(SS.loopStart),20);
     } else {
       setTimeout(()=>ssStop(),10);
