@@ -695,6 +695,7 @@ async function openPartitura(id){
   document.getElementById('bpm-slider').value=state.student.bpm;
   document.getElementById('bpm-display').textContent=state.student.bpm+' BPM';
   [1,2,4,8].forEach(v=>{const b=document.getElementById('lay-btn-'+v);if(b)b.classList.toggle('active',v===1);});
+  buildVLSeq();
   setMode(0);goTo('student-view');
 }
 
@@ -766,10 +767,11 @@ function renderCompasVex(compasData, compasStr, mode, onNoteClick){
   el('line',{x1:W-8,y1:STAFF_Y,x2:W-8,y2:STAFF_Y+STAFF_H,stroke:'#111','stroke-width':'1.2'},svg);
   el('line',{x1:W-4,y1:STAFF_Y,x2:W-4,y2:STAFF_Y+STAFF_H,stroke:'#111','stroke-width':'3'},svg);
 
-  // Treble clef — curl on G line (step 6 = 2nd line from bottom)
-  const clefSize=LS*4.8;
-  const gLineY=STAFF_Y+3*LS; // step 6 * LS/2 = 3*LS
-  const clefY=gLineY+clefSize*0.75;
+  // Treble clef — Georgia 𝄞 glyph: curl is ~20% from bottom of em box
+  // G line = step 6 = STAFF_Y + 3*LS
+  // We want curl there, so anchor (baseline) = G_line + clefSize*0.20
+  const clefSize=LS*4.6;
+  const clefY=STAFF_Y+3*LS+clefSize*0.20;
   tx('\u{1D11E}',{x:11,y:clefY,'font-size':clefSize,
     'font-family':'Georgia,Times New Roman,serif',fill:'#111',
     'dominant-baseline':'auto'},svg);
@@ -1099,12 +1101,9 @@ function ssRenderStaff(p){
   el('line',{x1:W-8,y1:STAFF_Y,x2:W-8,y2:STAFF_Y+STAFF_H,stroke:'#1a1a1a','stroke-width':'1.2'},svg);
   el('line',{x1:W-5,y1:STAFF_Y,x2:W-5,y2:STAFF_Y+STAFF_H,stroke:'#1a1a1a','stroke-width':'2.5'},svg);
 
-  // Treble clef — curl on G line (step 6 = 2nd line from bottom)
-  const ssClefSize=LS*4.8;
-  // G line Y = STAFF_Y + 6*(LS/2) = STAFF_Y + 3*LS
-  // Anchor text so curl (≈ 75% down from top of glyph) lands on G line
-  const ssGlineY=STAFF_Y+3*LS;
-  const ssClefY=ssGlineY+ssClefSize*0.75;
+  // Treble clef — same calibration as renderCompasVex
+  const ssClefSize=LS*4.6;
+  const ssClefY=STAFF_Y+3*LS+ssClefSize*0.20;
   tx('𝄞',{x:12,y:ssClefY,'font-size':ssClefSize,
     'font-family':'Georgia,Times New Roman,serif',
     fill:'#1a1a1a','dominant-baseline':'auto'},svg);
@@ -1445,7 +1444,7 @@ function stopGlobalMetro(){
   globalMetroBeat=0;globalMetroNextTime=0;
 }
 
-function startGlobalMetro(startAtAudioTime){
+function startGlobalMetro(startAtAudioTime, beatOffset){
   stopGlobalMetro();
   if(!globalMetroOn) return;
   const ctx=getAudioCtx();
@@ -1455,7 +1454,7 @@ function startGlobalMetro(startAtAudioTime){
   const[n]=(p?.compas||'4/4').split('/');
   const bpb=parseInt(n)||4;
   globalMetroNextTime=startAtAudioTime||ctx.currentTime+0.02;
-  globalMetroBeat=0;
+  globalMetroBeat=beatOffset||0; // start accent count from correct beat
   function schedule(){
     if(!globalMetroOn)return;
     const ctx=getAudioCtx();
@@ -1546,9 +1545,9 @@ function updateViewerLoopBar(){
 
 function togglePlayback(){state.student.playing?stopPlayback():startPlayback();}
 
-function startPlayback(startIdx){
-  const p=state.student.current;if(!p||!p.compases)return;
-  // Build seq
+function buildVLSeq(){
+  const p=state.student.current;
+  if(!p||!p.compases){VL.seq=[];return;}
   VL.seq=[];
   p.compases.forEach((c,ci)=>{
     (c.notas||[]).forEach((nota,ni)=>{
@@ -1559,21 +1558,54 @@ function startPlayback(startIdx){
       }
     });
   });
-  if(!VL.seq.length)return;
   VL.loopEnd=VL.seq.length-1;
   updateViewerLoopBar();
+}
+
+function startPlayback(startIdx){
+  const p=state.student.current;if(!p||!p.compases)return;
+  // Rebuild seq (updates dur_ms with current BPM)
+  buildVLSeq();
+  if(!VL.seq.length)return;
 
   state.student.playing=true;
   document.getElementById('play-btn').textContent='⏹';
 
-  // Start global metro synced with playback
   const ctx=getAudioCtx();
   if(ctx.state==='suspended')ctx.resume();
   const audioStart=ctx.currentTime+0.05;
-  startGlobalMetro(audioStart);
 
-  let idx=startIdx!=null?startIdx:VL.loopStart;
-  VL.nextWallTime=performance.now()+50; // match 50ms audio start offset
+  // Calculate which beat within the bar we're starting on
+  // so the metronome accent lands correctly
+  const idx0=startIdx!=null?startIdx:(VL.loopStart||0);
+  const compasStr=p.compas||'4/4';
+  const totalBeats=COMPAS_BEATS[compasStr]||16;
+  const [numStr]=compasStr.split('/');
+  const beatsPerBar=parseInt(numStr)||4;
+  // Count beat-slots used before startIdx in its compas
+  const startItem=VL.seq[idx0];
+  let beatOffset=0;
+  if(startItem){
+    const c=p.compases[startItem.ci];
+    if(c){
+      let slots=0;
+      for(let k=0;k<startItem.ni;k++){
+        if(c.notas[k]&&c.notas[k]!=='skip'){
+          const f=FIGURES.find(f=>f.id===c.notas[k].fig)||FIGURES[2];
+          const d=c.notas[k].dot&&f.dot_val;
+          slots+=(d?f.dot_val:f.val);
+        } else if(c.notas[k]===null||c.notas[k]==='skip'){
+          // skip slots don't count as new notes
+        }
+      }
+      // beatOffset in terms of bar beats
+      beatOffset=Math.round(slots/4)%beatsPerBar;
+    }
+  }
+  startGlobalMetro(audioStart, beatOffset);
+
+  let idx=idx0;
+  VL.nextWallTime=performance.now()+50;
 
   function playNext(){
     if(!state.student.playing)return;
