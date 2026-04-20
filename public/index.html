@@ -319,7 +319,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <span class="bpm-display" id="bpm-display">80 BPM</span>
     </div>
     <button class="sound-btn on" id="sound-toggle" onclick="toggleSound()">🔊</button>
-    <button class="fullscore-btn" onclick="openFullScore()">📄 Partitura completa</button>
+    <button class="sound-btn on" id="global-metro-btn" onclick="toggleGlobalMetro()">♩ Metro</button>
+    <button class="fullscore-btn" onclick="openFullScore()">📄 Partitura</button>
   </div>
   <!-- Progress + loop bar for all modes -->
   <div class="viewer-loop-bar" id="viewer-loop-bar">
@@ -765,8 +766,13 @@ function renderCompasVex(compasData, compasStr, mode, onNoteClick){
   el('line',{x1:W-8,y1:STAFF_Y,x2:W-8,y2:STAFF_Y+STAFF_H,stroke:'#111','stroke-width':'1.2'},svg);
   el('line',{x1:W-4,y1:STAFF_Y,x2:W-4,y2:STAFF_Y+STAFF_H,stroke:'#111','stroke-width':'3'},svg);
 
-  // Treble clef — use serif glyph scaled to staff
-  tx('\u{1D11E}',{x:11,y:STAFF_Y+STAFF_H+4,'font-size':LS*4.7,'font-family':'Georgia,Times New Roman,serif',fill:'#111','dominant-baseline':'auto'},svg);
+  // Treble clef — curl on G line (step 6 = 2nd line from bottom)
+  const clefSize=LS*4.8;
+  const gLineY=STAFF_Y+3*LS; // step 6 * LS/2 = 3*LS
+  const clefY=gLineY+clefSize*0.75;
+  tx('\u{1D11E}',{x:11,y:clefY,'font-size':clefSize,
+    'font-family':'Georgia,Times New Roman,serif',fill:'#111',
+    'dominant-baseline':'auto'},svg);
 
   const [tn,td]=compasStr.split('/');
   tx(tn,{x:CLEF_W-4,y:STAFF_Y+LS*1.25,'font-size':LS*1.55,'font-weight':'bold','font-family':'Georgia,serif',fill:'#111','text-anchor':'middle','dominant-baseline':'middle'},svg);
@@ -803,12 +809,15 @@ function renderCompasVex(compasData, compasStr, mode, onNoteClick){
     }
 
     if(nota.type==='rest'){
-      const midY=sy(2);
+      // Whole rest: hangs below 4th line = sy(2)
+      // Half rest:  sits ON middle (3rd) line = sy(4), rect above it
+      // Others: centred on staff
+      const line4Y=sy(2); // 4th line from bottom
+      const line3Y=sy(4); // middle line
       if(fig.id==='redonda'){
-        el('rect',{x:x-11,y:midY,width:22,height:LS*0.6,fill:'#333'},g);
+        el('rect',{x:x-11,y:line4Y,width:22,height:LS*0.65,fill:'#333'},g);
       } else if(fig.id==='blanca'){
-        el('rect',{x:x-11,y:midY-LS*0.6,width:22,height:LS*0.6,fill:'#333'},g);
-        el('rect',{x:x-11,y:midY,width:22,height:1,fill:'#333'},g);
+        el('rect',{x:x-11,y:line3Y-LS*0.65,width:22,height:LS*0.65,fill:'#333'},g);
       } else {
         const restPaths={
           negra:'M0,-6 C4,-4 5,0 3,4 C1,8 -2,8 -2,12 C-2,14 0,15 0,15 C-4,13 -5,9 -3,5 C-1,1 2,-2 2,-6 Z',
@@ -816,10 +825,9 @@ function renderCompasVex(compasData, compasStr, mode, onNoteClick){
           semicorchea:'M0,0 C8,-2 10,-10 6,-14 C10,-12 10,-6 4,-2 C2,0 2,4 0,8 Z M4,-8 C12,-10 14,-18 10,-22 C14,-20 14,-14 8,-10 Z'
         };
         const path=restPaths[fig.id]||restPaths.negra;
-        const rp=el('path',{d:path,fill:'#333',transform:'translate('+x+','+(midY+4)+') scale(1.2)'},g);
-        void rp;
+        el('path',{d:path,fill:'#333',transform:'translate('+x+','+(sy(3))+') scale(1.2)'},g);
       }
-      if(dot) el('circle',{cx:x+16,cy:midY-3,r:2.5,fill:'#333'},g);
+      if(dot) el('circle',{cx:x+16,cy:line4Y-3,r:2.5,fill:'#333'},g);
     } else {
       const sk=nota.key+'-'+nota.oct;
       const step=STEPS[sk]!==undefined?STEPS[sk]:2;
@@ -1091,8 +1099,14 @@ function ssRenderStaff(p){
   el('line',{x1:W-8,y1:STAFF_Y,x2:W-8,y2:STAFF_Y+STAFF_H,stroke:'#1a1a1a','stroke-width':'1.2'},svg);
   el('line',{x1:W-5,y1:STAFF_Y,x2:W-5,y2:STAFF_Y+STAFF_H,stroke:'#1a1a1a','stroke-width':'2.5'},svg);
 
-  // Treble clef
-  tx('𝄞',{x:12,y:STAFF_Y+STAFF_H+4,'font-size':LS*4.8,'font-family':'serif',
+  // Treble clef — curl on G line (step 6 = 2nd line from bottom)
+  const ssClefSize=LS*4.8;
+  // G line Y = STAFF_Y + 6*(LS/2) = STAFF_Y + 3*LS
+  // Anchor text so curl (≈ 75% down from top of glyph) lands on G line
+  const ssGlineY=STAFF_Y+3*LS;
+  const ssClefY=ssGlineY+ssClefSize*0.75;
+  tx('𝄞',{x:12,y:ssClefY,'font-size':ssClefSize,
+    'font-family':'Georgia,Times New Roman,serif',
     fill:'#1a1a1a','dominant-baseline':'auto'},svg);
 
   // Time sig
@@ -1140,17 +1154,21 @@ function ssRenderStaff(p){
     }
 
     if(nota.type==='rest'){
-      const midY=sy(2);
+      const line4Y=sy(2); // 4th line — whole rest hangs below
+      const line3Y=sy(4); // middle line — half rest sits on top
       if(fig.id==='redonda'){
-        el('rect',{x:x-10,y:midY,width:20,height:LS/2,fill:'#333'},g);
+        el('rect',{x:x-11,y:line4Y,width:22,height:LS*0.65,fill:'#333'},g);
       } else if(fig.id==='blanca'){
-        el('rect',{x:x-10,y:midY-LS/2,width:20,height:LS/2,fill:'#333'},g);
-      } else if(fig.id==='negra'){
-        tx('𝄼',{x,y:midY+5,'text-anchor':'middle','font-size':LS*1.8,'font-family':'serif',fill:'#333'},g);
+        el('rect',{x:x-11,y:line3Y-LS*0.65,width:22,height:LS*0.65,fill:'#333'},g);
       } else {
-        tx('𝄽',{x,y:midY+5,'text-anchor':'middle','font-size':LS*1.8,'font-family':'serif',fill:'#333'},g);
+        const rp={
+          negra:'M0,-6 C4,-4 5,0 3,4 C1,8 -2,8 -2,12 C-2,14 0,15 0,15 C-4,13 -5,9 -3,5 C-1,1 2,-2 2,-6 Z',
+          corchea:'M0,0 C8,-2 10,-10 6,-14 C10,-12 10,-6 4,-2 C2,0 2,4 0,8 Z',
+          semicorchea:'M0,0 C8,-2 10,-10 6,-14 C10,-12 10,-6 4,-2 C2,0 2,4 0,8 Z M4,-8 C12,-10 14,-18 10,-22 C14,-20 14,-14 8,-10 Z'
+        };
+        el('path',{d:rp[fig.id]||rp.negra,fill:'#333',transform:'translate('+x+','+sy(3)+') scale(1.2)'},g);
       }
-      if(dot) el('circle',{cx:x+14,cy:midY-2,r:2.2,fill:'#333'},g);
+      if(dot) el('circle',{cx:x+16,cy:line4Y-3,r:2.2,fill:'#333'},g);
     } else {
       const sk=`${nota.key}-${nota.oct}`;
       const step=STEPS[sk]!==undefined?STEPS[sk]:2;
@@ -1206,21 +1224,31 @@ function ssRenderStaff(p){
 }
 
 function ssStop(){
-  SS.playing=false;clearTimeout(SS.timer);ssStopMetro();
+  SS.playing=false;clearTimeout(SS.timer);
+  stopGlobalMetro();
   document.getElementById('play-btn').textContent='▶';
   document.querySelectorAll('.ss-active').forEach(el=>el.classList.remove('ss-active'));
 }
 function toggleSSPlayback(){SS.playing?ssStop():ssStart();}
+function ssSetStart(idx){
+  // Click on a note in Simply Sax — jump to that position
+  SS.activeIdx=idx;
+  ssHighlight(idx);
+  ssScrollToNote(idx);
+  updateSSHUD(idx);
+  // If already playing, restart from this position
+  if(SS.playing){ ssStop(); setTimeout(ssStart,50); }
+}
 function ssStart(){
   if(!SS.notes.length)return;
   SS.playing=true;document.getElementById('play-btn').textContent='⏹';
   if(SS.activeIdx<0||SS.activeIdx>=SS.notes.length)SS.activeIdx=SS.loopStart;
   const ctx=getAudioCtx();
   if(ctx.state==='suspended')ctx.resume();
-  // Use audio clock as master — both metro and notes reference same time
   SS.audioStartTime=ctx.currentTime+0.05;
-  SS.noteScheduleTime=SS.audioStartTime; // audio time of next note
-  if(SS.metroOn)ssStartMetro(SS.audioStartTime);
+  SS.noteScheduleTime=SS.audioStartTime;
+  // Use global metro (synced with notes)
+  startGlobalMetro(SS.audioStartTime);
   ssScheduleNotes(SS.activeIdx);
 }
 
@@ -1232,7 +1260,7 @@ function ssScheduleNotes(idx){
       const ctx=getAudioCtx();
       SS.audioStartTime=ctx.currentTime+0.02;
       SS.noteScheduleTime=SS.audioStartTime;
-      if(SS.metroOn){ssStopMetro();ssStartMetro(SS.audioStartTime);}
+      stopGlobalMetro();startGlobalMetro(SS.audioStartTime);
       setTimeout(()=>ssScheduleNotes(SS.loopStart),20);
     } else {
       setTimeout(()=>ssStop(),10);
@@ -1302,9 +1330,13 @@ function toggleSSLoop(){
   ssUpdateLoopBar();
 }
 function toggleSSMetro(){
-  SS.metroOn=!SS.metroOn;
-  document.getElementById('ss-metro-btn').classList.toggle('on',SS.metroOn);
-  if(SS.playing&&SS.metroOn)ssStartMetro();else ssStopMetro();
+  globalMetroOn=!globalMetroOn;
+  SS.metroOn=globalMetroOn;
+  document.getElementById('ss-metro-btn').classList.toggle('on',globalMetroOn);
+  const gb=document.getElementById('global-metro-btn');
+  if(gb) gb.classList.toggle('on',globalMetroOn);
+  if(SS.playing&&globalMetroOn) startGlobalMetro(getAudioCtx().currentTime+0.02);
+  else stopGlobalMetro();
 }
 function ssStopMetro(){
   if(SS.metroTimer){clearTimeout(SS.metroTimer);SS.metroTimer=null;}
@@ -1388,7 +1420,68 @@ function ssInitLoopBar(){
 // ══════════════════════════════════════════════════
 //  PLAYBACK (modes 0-3)
 // ══════════════════════════════════════════════════
-function updateBPM(val){state.student.bpm=parseInt(val);document.getElementById('bpm-display').textContent=val+' BPM';}
+// Global metronome — works in ALL modes
+let globalMetroOn = true;
+let globalMetroTimer = null;
+let globalMetroBeat = 0;
+let globalMetroNextTime = 0;
+
+function toggleGlobalMetro(){
+  globalMetroOn=!globalMetroOn;
+  const btn=document.getElementById('global-metro-btn');
+  if(btn) btn.classList.toggle('on',globalMetroOn);
+  // Sync with SS metro button too
+  if(state.student.mode===4){
+    SS.metroOn=globalMetroOn;
+    const ssBtn=document.getElementById('ss-metro-btn');
+    if(ssBtn) ssBtn.classList.toggle('on',SS.metroOn);
+  }
+  if(!globalMetroOn) stopGlobalMetro();
+  else if(state.student.playing||state.student.mode===4&&SS.playing) startGlobalMetro();
+}
+
+function stopGlobalMetro(){
+  if(globalMetroTimer){clearTimeout(globalMetroTimer);globalMetroTimer=null;}
+  globalMetroBeat=0;globalMetroNextTime=0;
+}
+
+function startGlobalMetro(startAtAudioTime){
+  stopGlobalMetro();
+  if(!globalMetroOn) return;
+  const ctx=getAudioCtx();
+  if(ctx.state==='suspended')ctx.resume();
+  const beatSec=60/state.student.bpm;
+  const p=state.student.current;
+  const[n]=(p?.compas||'4/4').split('/');
+  const bpb=parseInt(n)||4;
+  globalMetroNextTime=startAtAudioTime||ctx.currentTime+0.02;
+  globalMetroBeat=0;
+  function schedule(){
+    if(!globalMetroOn)return;
+    const ctx=getAudioCtx();
+    while(globalMetroNextTime<ctx.currentTime+0.25){
+      const isDown=(globalMetroBeat%bpb===0);
+      const osc=ctx.createOscillator(),gain=ctx.createGain();
+      osc.type='square';
+      osc.frequency.value=isDown?1400:900;
+      gain.gain.setValueAtTime(isDown?0.14:0.07,globalMetroNextTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001,globalMetroNextTime+0.035);
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.start(globalMetroNextTime);osc.stop(globalMetroNextTime+0.04);
+      globalMetroNextTime+=beatSec;
+      globalMetroBeat++;
+    }
+    globalMetroTimer=setTimeout(schedule,100);
+  }
+  schedule();
+}
+
+function updateBPM(val){
+  state.student.bpm=parseInt(val);
+  document.getElementById('bpm-display').textContent=val+' BPM';
+  // If metro is running, restart with new tempo
+  if(globalMetroTimer){stopGlobalMetro();startGlobalMetro();}
+}
 // Viewer loop state
 // Click any note in modes 0/1/2/3 to start playback from that note
 function viewerNoteClick(ci,ni){
@@ -1473,8 +1566,14 @@ function startPlayback(startIdx){
   state.student.playing=true;
   document.getElementById('play-btn').textContent='⏹';
 
+  // Start global metro synced with playback
+  const ctx=getAudioCtx();
+  if(ctx.state==='suspended')ctx.resume();
+  const audioStart=ctx.currentTime+0.05;
+  startGlobalMetro(audioStart);
+
   let idx=startIdx!=null?startIdx:VL.loopStart;
-  VL.nextWallTime=performance.now();
+  VL.nextWallTime=performance.now()+50; // match 50ms audio start offset
 
   function playNext(){
     if(!state.student.playing)return;
@@ -1500,6 +1599,7 @@ function startPlayback(startIdx){
 }
 function stopPlayback(){
   state.student.playing=false;clearTimeout(state.student.playTimer);state.student.playPos=null;
+  stopGlobalMetro();
   const btn=document.getElementById('play-btn');if(btn&&state.student.mode!==4)btn.textContent='▶';
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
   document.querySelectorAll('.svn-active').forEach(el=>el.classList.remove('svn-active'));
