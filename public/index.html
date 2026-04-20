@@ -721,267 +721,160 @@ function setLayout(n){
 //  VEXFLOW HELPER — renders one compas into a div
 //  Returns the SVG element (pixel-exact, no scaling)
 // ══════════════════════════════════════════════════
-function renderCompasVex(compasData, compasStr, mode){
+function renderCompasVex(compasData, compasStr, mode, onNoteClick){
   const showColors=(mode===2);
   const notasIdx=[];
   (compasData.notas||[]).forEach((nota,ni)=>{
-    if(nota&&nota!=='skip')notasIdx.push({nota,ni});
+    if(nota&&nota!=='skip') notasIdx.push({nota,ni});
   });
-  if(!notasIdx.length)return null;
-  const ci=compasData._ci!==undefined?compasData._ci:0;
-  const notas=notasIdx.map(x=>x.nota);
+  if(!notasIdx.length) return null;
+  const ci = compasData._ci!==undefined ? compasData._ci : 0;
+  const notas = notasIdx.map(x=>x.nota);
 
-  // ── Layout constants ──
-  const LBL_H = showColors ? 18 : 16;
-  const BLK_H = showColors ? 44 : 0;
-  const GAP   = showColors ? 5  : 0;
-  const LS    = 10;          // line spacing — bigger = better quality
-  const STAFF_H = 4*LS;
-  const PAD_T = 22;          // ledger lines above
-  const PAD_B = 18;          // ledger lines below
-  const CLEF_W = 52;
-  const SLOT  = 62;          // px per note
-  const W = Math.max(320, CLEF_W + notas.length*SLOT + 20);
-  const STAFF_Y = LBL_H + BLK_H + GAP + PAD_T;
-  const H = STAFF_Y + STAFF_H + PAD_B;
+  const LBL_H=showColors?18:16, BLK_H=showColors?44:0, GAP=showColors?5:0;
+  const LS=10, STAFF_H=4*LS, PAD_T=22, PAD_B=18;
+  const CLEF_W=52, SLOT=64;
+  const W=Math.max(320, CLEF_W+notas.length*SLOT+20);
+  const STAFF_Y=LBL_H+BLK_H+GAP+PAD_T;
+  const H=STAFF_Y+STAFF_H+PAD_B;
 
-  // Staff step from top line (F5=0, positive=down, each step = LS/2 px)
-  const STEPS = {
+  const STEPS={
     'do-0':10,'re-0':9,'mi-0':8,'fa-0':7,'sol-0':6,'la-0':5,'si-0':4,
-    'do-1':3, 're-1':2,'mi-1':1,'fa-1':0,'sol-1':-1,'la-1':-2,'si-1':-3,
+    'do-1':3,'re-1':2,'mi-1':1,'fa-1':0,'sol-1':-1,'la-1':-2,'si-1':-3,
     'do-2':-4,'re-2':-5,'mi-2':-6,'fa-2':-7,'sol-2':-8
   };
-  function sy(step){ return STAFF_Y + step*(LS/2); }
+  function sy(step){ return STAFF_Y+step*(LS/2); }
 
-  const NS = 'http://www.w3.org/2000/svg';
-  function el(tag, attrs, parent){
-    const e = document.createElementNS(NS, tag);
-    Object.entries(attrs).forEach(([k,v]) => e.setAttribute(k, String(v)));
-    if(parent) parent.appendChild(e);
-    return e;
+  const NS='http://www.w3.org/2000/svg';
+  function el(tag,attrs,parent){
+    const e=document.createElementNS(NS,tag);
+    Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));
+    if(parent)parent.appendChild(e); return e;
   }
-  function tx(text, attrs, parent){
-    const e = document.createElementNS(NS, 'text');
-    Object.entries(attrs).forEach(([k,v]) => e.setAttribute(k, String(v)));
-    e.textContent = text;
-    if(parent) parent.appendChild(e);
-    return e;
+  function tx(text,attrs,parent){
+    const e=document.createElementNS(NS,'text');
+    Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));
+    e.textContent=text; if(parent)parent.appendChild(e); return e;
   }
 
-  const svg = el('svg', {
-    xmlns: NS,
-    viewBox: `0 0 ${W} ${H}`,
-    style: 'display:block;width:100%;height:auto;'
-  });
+  const svg=el('svg',{xmlns:NS,viewBox:'0 0 '+W+' '+H,style:'display:block;width:100%;height:auto;'});
+  el('rect',{width:W,height:H,fill:'white'},svg);
 
-  // White background
-  el('rect', {width:W, height:H, fill:'white'}, svg);
+  for(let l=0;l<5;l++) el('line',{x1:8,y1:STAFF_Y+l*LS,x2:W-6,y2:STAFF_Y+l*LS,stroke:'#111','stroke-width':'1.1'},svg);
+  el('line',{x1:8,y1:STAFF_Y,x2:8,y2:STAFF_Y+STAFF_H,stroke:'#111','stroke-width':'1.2'},svg);
+  el('line',{x1:W-8,y1:STAFF_Y,x2:W-8,y2:STAFF_Y+STAFF_H,stroke:'#111','stroke-width':'1.2'},svg);
+  el('line',{x1:W-4,y1:STAFF_Y,x2:W-4,y2:STAFF_Y+STAFF_H,stroke:'#111','stroke-width':'3'},svg);
 
-  // ── 5 Staff lines ──
-  for(let l=0; l<5; l++){
-    const y = STAFF_Y + l*LS;
-    el('line', {x1:8, y1:y, x2:W-6, y2:y, stroke:'#1a1a1a', 'stroke-width':'1'}, svg);
-  }
+  // Treble clef — use serif glyph scaled to staff
+  tx('\u{1D11E}',{x:11,y:STAFF_Y+STAFF_H+4,'font-size':LS*4.7,'font-family':'Georgia,Times New Roman,serif',fill:'#111','dominant-baseline':'auto'},svg);
 
-  // ── Opening barline ──
-  el('line', {x1:8, y1:STAFF_Y, x2:8, y2:STAFF_Y+STAFF_H, stroke:'#1a1a1a', 'stroke-width':'1.2'}, svg);
+  const [tn,td]=compasStr.split('/');
+  tx(tn,{x:CLEF_W-4,y:STAFF_Y+LS*1.25,'font-size':LS*1.55,'font-weight':'bold','font-family':'Georgia,serif',fill:'#111','text-anchor':'middle','dominant-baseline':'middle'},svg);
+  tx(td,{x:CLEF_W-4,y:STAFF_Y+LS*3,'font-size':LS*1.55,'font-weight':'bold','font-family':'Georgia,serif',fill:'#111','text-anchor':'middle','dominant-baseline':'middle'},svg);
 
-  // ── Closing barline (double) ──
-  el('line', {x1:W-8, y1:STAFF_Y, x2:W-8, y2:STAFF_Y+STAFF_H, stroke:'#1a1a1a', 'stroke-width':'1.2'}, svg);
-  el('line', {x1:W-5, y1:STAFF_Y, x2:W-5, y2:STAFF_Y+STAFF_H, stroke:'#1a1a1a', 'stroke-width':'2.5'}, svg);
-
-  // ── Treble clef (drawn as SVG path for best quality) ──
-  // Positioned so the curl sits on G4 = step 6 from top = 2nd line from bottom
-  const clefX = 14;
-  const clefBaseY = STAFF_Y + STAFF_H; // bottom of staff
-  // Use the Unicode musical symbol scaled via text — most reliable cross-browser
-  tx('𝄞', {
-    x: clefX,
-    y: clefBaseY + 4,
-    'font-size': LS*4.8,
-    'font-family': 'serif',
-    fill: '#1a1a1a',
-    'dominant-baseline': 'auto'
-  }, svg);
-
-  // ── Time signature ──
-  const [tn, td] = compasStr.split('/');
-  const sigX = CLEF_W - 4;
-  tx(tn, {
-    x: sigX, y: STAFF_Y + LS*1.2,
-    'font-size': LS*1.5, 'font-weight':'bold', 'font-family':'serif',
-    fill:'#1a1a1a', 'text-anchor':'middle', 'dominant-baseline':'middle'
-  }, svg);
-  tx(td, {
-    x: sigX, y: STAFF_Y + LS*3,
-    'font-size': LS*1.5, 'font-weight':'bold', 'font-family':'serif',
-    fill:'#1a1a1a', 'text-anchor':'middle', 'dominant-baseline':'middle'
-  }, svg);
-
-  // ── Highlight style ──
-  const styleEl = document.createElementNS(NS, 'style');
-  styleEl.textContent = '.svn-ring{transition:opacity .08s}.svn-active .svn-ring{opacity:.18}';
+  const styleEl=document.createElementNS(NS,'style');
+  styleEl.textContent='.svn-ring{transition:opacity .08s}.svn-active .svn-ring{opacity:.18}';
   svg.appendChild(styleEl);
 
-  // ── Notes ──
-  notasIdx.forEach(({nota, ni}, i) => {
-    const x = CLEF_W + i*SLOT + SLOT/2;
-    const color = nota.type==='note' ? (NOTE_COLORS[nota.key]||'#333') : '#777';
-    const tc    = nota.type==='note' ? (NOTE_TEXT[nota.key]||'white')  : '#fff';
-    const nm    = nota.type==='note' ? NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)] : '𝄽';
-    const altS  = nota.type==='note' ? altSym(nota.alt) : '';
-    const octS  = nota.type==='note' ? (OCTAVAS[nota.oct]?.suffix||'') : '';
-    const fig   = FIGURES.find(f=>f.id===nota.fig) || FIGURES[2];
-    const dot   = nota.dot && fig.dot_val;
-    const bw    = SLOT - 6;
+  notasIdx.forEach(({nota,ni},i)=>{
+    const x=CLEF_W+i*SLOT+SLOT/2;
+    const color=nota.type==='note'?(NOTE_COLORS[nota.key]||'#333'):'#666';
+    const tc=nota.type==='note'?(NOTE_TEXT[nota.key]||'white'):'#fff';
+    const nm=nota.type==='note'?NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]:'';
+    const altS=nota.type==='note'?altSym(nota.alt):'';
+    const octS=nota.type==='note'?(OCTAVAS[nota.oct]?.suffix||''):'';
+    const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+    const dot=nota.dot&&fig.dot_val;
+    const bw=SLOT-6;
 
-    // Group with playback ID
-    const g = el('g', {id:`svn-${ci}-${ni}`, class:'svn-note'}, svg);
+    const g=el('g',{id:'svn-'+ci+'-'+ni,class:'svn-note',style:'cursor:pointer'},svg);
+    if(onNoteClick) g.addEventListener('click',()=>onNoteClick(ci,ni));
+    el('rect',{class:'svn-ring',x:x-bw/2-2,y:0,width:bw+4,height:H,rx:4,fill:color,opacity:0},g);
 
-    // Playback highlight ring
-    el('rect', {
-      class:'svn-ring', x:x-bw/2-2, y:0,
-      width:bw+4, height:H, rx:4,
-      fill:color, opacity:0
-    }, g);
-
-    // ── Colour block (mode 2 = parallel) ──
     if(showColors){
-      const by=LBL_H, bh=BLK_H-4;
-      el('rect', {x:x-bw/2,y:by,width:bw,height:bh,rx:6,
-        fill:color, stroke:'rgba(0,0,0,.12)','stroke-width':1}, g);
-      tx(altS+nm, {x, y:by+bh/2,
-        'text-anchor':'middle','dominant-baseline':'middle',
-        'font-size':13,'font-weight':900,'font-family':'Nunito,sans-serif',fill:tc}, g);
-      if(octS) tx(octS, {x:x+bw/2-3,y:by+bh-2,
-        'text-anchor':'end','font-size':7,'font-family':'Nunito,sans-serif',fill:tc,opacity:.8}, g);
-      // Dashed connector
-      el('line', {x1:x,y1:LBL_H+BLK_H,x2:x,y2:STAFF_Y,
-        stroke:color,'stroke-width':'1.2','stroke-dasharray':'2,2',opacity:.4}, g);
-      if(octS) tx(octS, {x, y:LBL_H-2,
-        'text-anchor':'middle','dominant-baseline':'auto',
-        'font-size':9,'font-weight':800,'font-family':'Nunito,sans-serif',fill:color}, g);
+      const by=LBL_H,bh=BLK_H-4;
+      el('rect',{x:x-bw/2,y:by,width:bw,height:bh,rx:6,fill:color,stroke:'rgba(0,0,0,.12)','stroke-width':1},g);
+      tx(altS+nm,{x,y:by+bh/2,'text-anchor':'middle','dominant-baseline':'middle','font-size':13,'font-weight':900,'font-family':'Nunito,sans-serif',fill:tc},g);
+      if(octS) tx(octS,{x:x+bw/2-3,y:by+bh-2,'text-anchor':'end','font-size':7,'font-family':'Nunito,sans-serif',fill:tc,opacity:.8},g);
+      el('line',{x1:x,y1:LBL_H+BLK_H,x2:x,y2:STAFF_Y,stroke:color,'stroke-width':'1.2','stroke-dasharray':'2,2',opacity:.4},g);
+      if(octS) tx(octS,{x,y:LBL_H-2,'text-anchor':'middle','dominant-baseline':'auto','font-size':9,'font-weight':800,'font-family':'Nunito,sans-serif',fill:color},g);
     } else if(nota.type==='note'){
-      // Label above staff, close to it
-      tx(altS+nm+(octS?' '+octS:''), {
-        x, y:STAFF_Y-5,
-        'text-anchor':'middle','dominant-baseline':'auto',
-        'font-size':12,'font-weight':900,'font-family':'Nunito,sans-serif',fill:color
-      }, g);
+      tx(altS+nm+(octS?' '+octS:''),{x,y:STAFF_Y-5,'text-anchor':'middle','dominant-baseline':'auto','font-size':12,'font-weight':900,'font-family':'Nunito,sans-serif',fill:color},g);
     }
 
-    // ── REST ──
     if(nota.type==='rest'){
-      const midY = sy(2); // middle of staff
+      const midY=sy(2);
       if(fig.id==='redonda'){
-        // Whole rest: filled rect hanging below 4th line
-        el('rect',{x:x-10,y:sy(2),width:20,height:LS/2,fill:'#333'}, g);
+        el('rect',{x:x-11,y:midY,width:22,height:LS*0.6,fill:'#333'},g);
       } else if(fig.id==='blanca'){
-        // Half rest: filled rect sitting on middle line
-        el('rect',{x:x-10,y:sy(2)-LS/2,width:20,height:LS/2,fill:'#333'}, g);
-      } else if(fig.id==='negra'){
-        tx('𝄼',{x,y:midY+5,'text-anchor':'middle','font-size':LS*1.8,'font-family':'serif',fill:'#333'}, g);
+        el('rect',{x:x-11,y:midY-LS*0.6,width:22,height:LS*0.6,fill:'#333'},g);
+        el('rect',{x:x-11,y:midY,width:22,height:1,fill:'#333'},g);
       } else {
-        tx('𝄽',{x,y:midY+5,'text-anchor':'middle','font-size':LS*1.8,'font-family':'serif',fill:'#333'}, g);
+        const restPaths={
+          negra:'M0,-6 C4,-4 5,0 3,4 C1,8 -2,8 -2,12 C-2,14 0,15 0,15 C-4,13 -5,9 -3,5 C-1,1 2,-2 2,-6 Z',
+          corchea:'M0,0 C8,-2 10,-10 6,-14 C10,-12 10,-6 4,-2 C2,0 2,4 0,8 Z',
+          semicorchea:'M0,0 C8,-2 10,-10 6,-14 C10,-12 10,-6 4,-2 C2,0 2,4 0,8 Z M4,-8 C12,-10 14,-18 10,-22 C14,-20 14,-14 8,-10 Z'
+        };
+        const path=restPaths[fig.id]||restPaths.negra;
+        const rp=el('path',{d:path,fill:'#333',transform:'translate('+x+','+(midY+4)+') scale(1.2)'},g);
+        void rp;
       }
-      if(dot) el('circle',{cx:x+14,cy:midY-2,r:2.2,fill:'#333'}, g);
-
-    // ── NOTE ──
+      if(dot) el('circle',{cx:x+16,cy:midY-3,r:2.5,fill:'#333'},g);
     } else {
-      const sk = `${nota.key}-${nota.oct}`;
-      const step = STEPS[sk] !== undefined ? STEPS[sk] : 2;
-      const ny = sy(step);
-      // Stem up when note is at or below middle line (step >= 2)
-      const stemUp = step >= 2;
+      const sk=nota.key+'-'+nota.oct;
+      const step=STEPS[sk]!==undefined?STEPS[sk]:2;
+      const ny=sy(step);
+      const stemUp=step>=2;
+      const hrx=7,hry=5;
 
-      // ── Ledger lines above staff (step < 0) ──
-      if(step < 0){
-        for(let p=Math.ceil(step/2)*2; p<0; p+=2){
-          el('line',{x1:x-12,y1:sy(p),x2:x+12,y2:sy(p),stroke:color,'stroke-width':'1.2'}, g);
-        }
-      }
-      // ── Ledger lines below staff (step > 8) ──
-      if(step > 8){
-        for(let p=10; p<=step; p+=2){
-          el('line',{x1:x-12,y1:sy(p),x2:x+12,y2:sy(p),stroke:color,'stroke-width':'1.2'}, g);
-        }
-      }
+      if(step<0) for(let p=Math.ceil(step/2)*2;p<0;p+=2) el('line',{x1:x-13,y1:sy(p),x2:x+13,y2:sy(p),stroke:color,'stroke-width':'1.3'},g);
+      if(step>8) for(let p=10;p<=step;p+=2) el('line',{x1:x-13,y1:sy(p),x2:x+13,y2:sy(p),stroke:color,'stroke-width':'1.3'},g);
 
-      // ── Note head ──
-      const hrx=7.5, hry=5;
+      // Note head
       if(fig.id==='redonda'){
-        // Open oval with hole
-        el('ellipse',{cx:x,cy:ny,rx:hrx,ry:hry,fill:color}, g);
-        el('ellipse',{cx:x,cy:ny,rx:hrx-3,ry:hry-2.5,
-          transform:`rotate(-15,${x},${ny})`,fill:'white'}, g);
+        el('ellipse',{cx:x,cy:ny,rx:hrx+1,ry:hry,fill:color},g);
+        el('ellipse',{cx:x+1,cy:ny,rx:hrx-2,ry:hry-2,fill:'white',transform:'rotate(-20 '+x+' '+ny+')'},g);
       } else if(fig.id==='blanca'){
-        el('ellipse',{cx:x,cy:ny,rx:hrx,ry:hry,fill:'white',stroke:color,'stroke-width':2}, g);
+        el('ellipse',{cx:x,cy:ny,rx:hrx,ry:hry,fill:'white',stroke:color,'stroke-width':'2',transform:'rotate(-15 '+x+' '+ny+')'},g);
       } else {
-        // Filled, slightly tilted
-        el('ellipse',{cx:x,cy:ny,rx:hrx,ry:hry,
-          transform:`rotate(-15,${x},${ny})`,fill:color}, g);
+        el('ellipse',{cx:x,cy:ny,rx:hrx,ry:hry,fill:color,transform:'rotate(-15 '+x+' '+ny+')'},g);
       }
 
-      // ── Accidentals ──
-      if(nota.alt==='sharp'){
-        tx('♯',{x:x-hrx-6,y:ny+5,'font-size':LS*1.4,'font-family':'serif',fill:color,'text-anchor':'middle'}, g);
-      }
-      if(nota.alt==='flat'){
-        tx('♭',{x:x-hrx-5,y:ny+6,'font-size':LS*1.6,'font-family':'serif',fill:color,'text-anchor':'middle'}, g);
-      }
+      if(nota.alt==='sharp') tx('\u266F',{x:x-hrx-7,y:ny+6,'font-size':LS*1.5,'font-family':'Georgia,serif',fill:color,'text-anchor':'middle','dominant-baseline':'auto'},g);
+      if(nota.alt==='flat')  tx('\u266D',{x:x-hrx-6,y:ny+8,'font-size':LS*1.7,'font-family':'Georgia,serif',fill:color,'text-anchor':'middle','dominant-baseline':'auto'},g);
 
-      // ── Augmentation dot ──
-      if(dot){
-        const dotY = step%2===0 ? ny-LS/2 : ny;
-        el('circle',{cx:x+hrx+5,cy:dotY,r:2.5,fill:color}, g);
-      }
+      if(dot){const dy=step%2===0?ny-LS/2:ny; el('circle',{cx:x+hrx+7,cy:dy,r:2.5,fill:color},g);}
 
-      // ── Stem ──
-      if(fig.id !== 'redonda'){
-        const stemLen = LS*3.2;
+      if(fig.id!=='redonda'){
+        const slen=LS*3.4;
         if(stemUp){
-          const sx=x+hrx-1, sy1=ny, sy2=ny-stemLen;
-          el('line',{x1:sx,y1:sy1,x2:sx,y2:sy2,stroke:color,'stroke-width':1.6}, g);
-          // Flags
-          if(fig.id==='corchea'){
-            el('path',{d:`M${sx},${sy2} C${sx+14},${sy2+6} ${sx+12},${sy2+14} ${sx+6},${sy2+20}`,
-              fill:'none',stroke:color,'stroke-width':1.6}, g);
+          const sx=x+hrx-0.5,sy2=ny-slen;
+          el('line',{x1:sx,y1:ny,x2:sx,y2:sy2,stroke:color,'stroke-width':1.7},g);
+          if(fig.id==='corchea'||fig.id==='semicorchea'){
+            el('path',{d:'M'+sx+','+sy2+' C'+(sx+16)+','+(sy2+4)+' '+(sx+14)+','+(sy2+12)+' '+(sx+7)+','+(sy2+18),fill:'none',stroke:color,'stroke-width':1.7},g);
           }
           if(fig.id==='semicorchea'){
-            el('path',{d:`M${sx},${sy2} C${sx+14},${sy2+6} ${sx+12},${sy2+14} ${sx+6},${sy2+20}`,
-              fill:'none',stroke:color,'stroke-width':1.6}, g);
-            el('path',{d:`M${sx},${sy2+10} C${sx+14},${sy2+16} ${sx+12},${sy2+24} ${sx+6},${sy2+30}`,
-              fill:'none',stroke:color,'stroke-width':1.6}, g);
+            el('path',{d:'M'+sx+','+(sy2+10)+' C'+(sx+16)+','+(sy2+14)+' '+(sx+14)+','+(sy2+22)+' '+(sx+7)+','+(sy2+28),fill:'none',stroke:color,'stroke-width':1.7},g);
           }
         } else {
-          const sx=x-hrx+1, sy1=ny, sy2=ny+stemLen;
-          el('line',{x1:sx,y1:sy1,x2:sx,y2:sy2,stroke:color,'stroke-width':1.6}, g);
-          if(fig.id==='corchea'){
-            el('path',{d:`M${sx},${sy2} C${sx+14},${sy2-6} ${sx+12},${sy2-14} ${sx+6},${sy2-20}`,
-              fill:'none',stroke:color,'stroke-width':1.6}, g);
+          const sx=x-hrx+0.5,sy2=ny+slen;
+          el('line',{x1:sx,y1:ny,x2:sx,y2:sy2,stroke:color,'stroke-width':1.7},g);
+          if(fig.id==='corchea'||fig.id==='semicorchea'){
+            el('path',{d:'M'+sx+','+sy2+' C'+(sx+16)+','+(sy2-4)+' '+(sx+14)+','+(sy2-12)+' '+(sx+7)+','+(sy2-18),fill:'none',stroke:color,'stroke-width':1.7},g);
           }
           if(fig.id==='semicorchea'){
-            el('path',{d:`M${sx},${sy2} C${sx+14},${sy2-6} ${sx+12},${sy2-14} ${sx+6},${sy2-20}`,
-              fill:'none',stroke:color,'stroke-width':1.6}, g);
-            el('path',{d:`M${sx},${sy2-10} C${sx+14},${sy2-16} ${sx+12},${sy2-24} ${sx+6},${sy2-30}`,
-              fill:'none',stroke:color,'stroke-width':1.6}, g);
+            el('path',{d:'M'+sx+','+(sy2-10)+' C'+(sx+16)+','+(sy2-14)+' '+(sx+14)+','+(sy2-22)+' '+(sx+7)+','+(sy2-28),fill:'none',stroke:color,'stroke-width':1.7},g);
           }
         }
       }
 
-      // ── Tie arc to next note ──
-      if(nota.tied && i<notasIdx.length-1){
-        const nx2 = CLEF_W + (i+1)*SLOT + SLOT/2;
-        const ty  = stemUp ? ny+hry+3 : ny-hry-3;
-        const ctrl = ty + (stemUp ? 9 : -9);
-        el('path',{
-          d:`M${x+hrx},${ty} Q${(x+nx2)/2},${ctrl} ${nx2-hrx},${ty}`,
-          fill:'none', stroke:color, 'stroke-width':1.6
-        }, g);
+      if(nota.tied&&i<notasIdx.length-1){
+        const nx2=CLEF_W+(i+1)*SLOT+SLOT/2;
+        const ty=stemUp?ny+hry+4:ny-hry-4;
+        el('path',{d:'M'+(x+hrx)+','+ty+' Q'+((x+nx2)/2)+','+(ty+(stemUp?10:-10))+' '+(nx2-hrx)+','+ty,fill:'none',stroke:color,'stroke-width':1.8},g);
       }
     }
   });
-
   return svg;
 }
 
@@ -1017,7 +910,15 @@ function renderViewer(){
       const div=document.getElementById('staff-'+ci);
       if(!div)return;
       div.innerHTML='';
-      const svg=renderCompasVex({...c,_ci:ci},p.compas||'4/4',mode);
+      const svg=renderCompasVex({...c,_ci:ci},p.compas||'4/4',mode,(clickCi,clickNi)=>{
+        // Find global index in VL.seq and start from there
+        if(!VL.seq.length){
+          startPlayback();
+          return;
+        }
+        const idx=VL.seq.findIndex(s=>s.ci===clickCi&&s.ni===clickNi);
+        if(idx>=0){ stopPlayback(); startPlayback(idx); }
+      });
       if(svg)div.appendChild(svg);
     });
   }
@@ -1041,12 +942,12 @@ function renderViewerNote(nota,mode,ci,ni,compact=false){
   const size=Math.min(baseS+val*3,maxS),fs=size>44?'0.82':'0.65';
   const playActive=state.student.playing&&state.student.playPos&&state.student.playPos.ci===ci&&state.student.playPos.ni===ni;
   if(nota.type==='rest'){
-    return`<div class="vnote vnote-rest${playActive?' active-note':''}" style="width:${size}px;height:${size}px;" id="vn-${ci}-${ni}">
+    return`<div class="vnote vnote-rest${playActive?' active-note':''}" style="width:${size}px;height:${size}px;" id="vn-${ci}-${ni}" onclick="viewerNoteClick(${ci},${ni})">
       ${mode===1?'<span style="font-size:0.95rem">𝄽</span>':''}<span class="vnote-dur">${fig.glyph}${dot?'·':''}</span></div>`;
   }
   const color=NOTE_COLORS[nota.key],tc=NOTE_TEXT[nota.key];
   const noteName=NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)],octSuf=OCTAVAS[nota.oct]?.suffix||'';
-  return`<div class="vnote${playActive?' active-note':''}" style="width:${size}px;height:${size}px;background:${color};" id="vn-${ci}-${ni}">
+  return`<div class="vnote${playActive?' active-note':''}" style="width:${size}px;height:${size}px;background:${color};cursor:pointer;" id="vn-${ci}-${ni}" onclick="viewerNoteClick(${ci},${ni})">
     ${mode===1?`<span class="vnote-alt" style="color:${tc};font-size:0.65rem">${altSym(nota.alt)}</span>`:''}
     ${mode===1?`<span class="vnote-name" style="font-size:${fs}rem;color:${tc}">${noteName}</span>`:''}
     ${mode===1?`<span class="vnote-dur" style="color:${tc};font-size:0.5rem">${fig.glyph}${dot?'·':''}${octSuf}</span>`:''}
@@ -1080,7 +981,13 @@ function openFullScore(){
       hdr.style.cssText='font-size:0.62rem;color:#7A6E5F;font-family:Space Mono,monospace;padding:2px 6px;border-bottom:1px solid #EDE8DC;font-weight:700;';
       hdr.textContent='Compas '+(ci+1)+' — '+compasStr;
       cell.appendChild(hdr);
-      const svg=renderCompasVex({...c,_ci:ci},compasStr,3);
+      const svg=renderCompasVex({...c,_ci:ci},compasStr,3,(clickCi,clickNi)=>{
+        closeFullScore();
+        setTimeout(()=>{
+          if(!VL.seq.length) startPlayback();
+          else{const idx=VL.seq.findIndex(s=>s.ci===clickCi&&s.ni===clickNi);if(idx>=0){stopPlayback();startPlayback(idx);}}
+        },100);
+      });
       if(svg) cell.appendChild(svg);
       rowDiv.appendChild(cell);
     });
@@ -1098,7 +1005,7 @@ const SS={
   loopStart:0,loopEnd:0,loopActive:false,
   metroOn:true,metroTimer:null,beatCount:0,nextBeatTime:0,
   timer:null,xPos:[],dragging:null,
-  startAudioTime:0,startWallTime:0,nextNoteWallTime:0,
+  audioStartTime:0,noteScheduleTime:0,
 };
 
 function ssFlatNotes(){
@@ -1310,36 +1217,53 @@ function ssStart(){
   if(SS.activeIdx<0||SS.activeIdx>=SS.notes.length)SS.activeIdx=SS.loopStart;
   const ctx=getAudioCtx();
   if(ctx.state==='suspended')ctx.resume();
-  // Both metro and notes start at same audio time
-  SS.startAudioTime=ctx.currentTime+0.05;
-  SS.startWallTime=performance.now()+50;
-  SS.nextNoteWallTime=SS.startWallTime;
-  if(SS.metroOn)ssStartMetro(SS.startAudioTime);
-  SS.timer=setTimeout(()=>ssPlayNote(SS.activeIdx), 50);
+  // Use audio clock as master — both metro and notes reference same time
+  SS.audioStartTime=ctx.currentTime+0.05;
+  SS.noteScheduleTime=SS.audioStartTime; // audio time of next note
+  if(SS.metroOn)ssStartMetro(SS.audioStartTime);
+  ssScheduleNotes(SS.activeIdx);
 }
 
-function ssPlayNote(idx){
+function ssScheduleNotes(idx){
   if(!SS.playing)return;
   const endIdx=SS.loopActive?SS.loopEnd:SS.notes.length-1;
   if(idx>endIdx){
     if(SS.loopActive){
-      // Reset timing for loop
       const ctx=getAudioCtx();
-      SS.startAudioTime=ctx.currentTime+0.02;
-      SS.startWallTime=performance.now()+20;
-      SS.nextNoteWallTime=SS.startWallTime;
-      SS.timer=setTimeout(()=>ssPlayNote(SS.loopStart),20);
-    }else{ssStop();}
+      SS.audioStartTime=ctx.currentTime+0.02;
+      SS.noteScheduleTime=SS.audioStartTime;
+      if(SS.metroOn){ssStopMetro();ssStartMetro(SS.audioStartTime);}
+      setTimeout(()=>ssScheduleNotes(SS.loopStart),20);
+    } else {
+      setTimeout(()=>ssStop(),10);
+    }
     return;
   }
-  SS.activeIdx=idx;
-  ssHighlight(idx);ssScrollToNote(idx);updateSSHUD(idx);
-  playNoteSound(SS.notes[idx].nota);
 
-  // Drift-compensated scheduling: track expected time, compensate for late callbacks
-  SS.nextNoteWallTime+=SS.notes[idx].dur_ms;
-  const drift=SS.nextNoteWallTime-performance.now();
-  SS.timer=setTimeout(()=>ssPlayNote(idx+1), Math.max(0,drift));
+  SS.activeIdx=idx;
+  const item=SS.notes[idx];
+
+  // Schedule note sound at exact audio time
+  const ctx=getAudioCtx();
+  const scheduleAt=SS.noteScheduleTime;
+  const delayMs=Math.max(0,(scheduleAt-ctx.currentTime)*1000);
+
+  // Visual highlight — slightly before audio for display latency
+  setTimeout(()=>{
+    if(!SS.playing)return;
+    ssHighlight(idx);ssScrollToNote(idx);updateSSHUD(idx);
+  }, Math.max(0,delayMs-30));
+
+  // Sound at scheduled audio time
+  if(item.nota.type!=='rest' && state.student.soundOn){
+    setTimeout(()=>{ if(SS.playing) playNoteSound(item.nota); }, delayMs);
+  }
+
+  // Advance schedule time by this note's duration
+  SS.noteScheduleTime+=item.dur_ms/1000;
+
+  // Schedule next note callback
+  SS.timer=setTimeout(()=>ssScheduleNotes(idx+1), delayMs+item.dur_ms);
 }
 function ssHighlight(idx){
   document.querySelectorAll('.ss-active').forEach(el=>el.classList.remove('ss-active'));
@@ -1466,6 +1390,14 @@ function ssInitLoopBar(){
 // ══════════════════════════════════════════════════
 function updateBPM(val){state.student.bpm=parseInt(val);document.getElementById('bpm-display').textContent=val+' BPM';}
 // Viewer loop state
+// Click any note in modes 0/1/2/3 to start playback from that note
+function viewerNoteClick(ci,ni){
+  if(!VL.seq.length){ startPlayback(); return; }
+  const idx=VL.seq.findIndex(s=>s.ci===ci&&s.ni===ni);
+  if(idx>=0){ stopPlayback(); startPlayback(idx); }
+  else startPlayback();
+}
+
 const VL={loopActive:false,loopStart:0,loopEnd:0,dragging:null,seq:[],nextWallTime:0};
 
 function toggleViewerLoop(){
