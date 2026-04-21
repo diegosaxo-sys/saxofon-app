@@ -1,85 +1,80 @@
 const express = require('express');
 const path = require('path');
-const { Pool } = require('pg');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const API = SUPABASE_URL + '/rest/v1/partituras';
 
-async function initDB(){
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS partituras (
-      id TEXT PRIMARY KEY,
-      titulo TEXT,
-      compas TEXT,
-      instrument TEXT,
-      compases JSONB,
-      creada_en TIMESTAMPTZ DEFAULT NOW(),
-      actualizada_en TIMESTAMPTZ
-    )
-  `);
-  console.log('Base de datos lista');
+function headers(extra){
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_KEY,
+    ...extra
+  };
 }
 
+async function sb(method, url, body){
+  const opts = { method, headers: headers(method==='POST'?{'Prefer':'return=representation'}:method==='GET'?{'Accept':'application/json'}:{}) };
+  if(body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  if(!r.ok){ const t=await r.text(); throw new Error(t); }
+  const text = await r.text();
+  return text ? JSON.parse(text) : null;
+}
+
+// GET todas
 app.get('/api/partituras', async (req, res) => {
   try{
-    const r = await pool.query(
-      'SELECT id, titulo, compas, instrument, creada_en, jsonb_array_length(compases) as num_compases FROM partituras ORDER BY creada_en DESC'
-    );
-    res.json(r.rows.map(p=>({
-      id: p.id, titulo: p.titulo, compas: p.compas,
-      instrument: p.instrument, creadaEn: p.creada_en,
-      numCompases: parseInt(p.num_compases)||0
+    const data = await sb('GET', API + '?select=id,titulo,compas,instrument,creada_en,compases&order=creada_en.desc');
+    res.json((data||[]).map(p=>({
+      id:p.id, titulo:p.titulo, compas:p.compas,
+      instrument:p.instrument, creadaEn:p.creada_en,
+      numCompases: p.compases ? p.compases.length : 0
     })));
-  }catch(e){ console.error(e); res.status(500).json({error:'Error'}); }
+  }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
 
+// GET una
 app.get('/api/partituras/:id', async (req, res) => {
   try{
-    const r = await pool.query('SELECT * FROM partituras WHERE id=$1', [req.params.id]);
-    if(!r.rows.length) return res.status(404).json({error:'No encontrada'});
-    const p = r.rows[0];
-    res.json({ id:p.id, titulo:p.titulo, compas:p.compas,
-      instrument:p.instrument, compases:p.compases, creadaEn:p.creada_en });
-  }catch(e){ console.error(e); res.status(500).json({error:'Error'}); }
+    const data = await sb('GET', API + '?id=eq.'+req.params.id+'&select=*');
+    if(!data||!data.length) return res.status(404).json({error:'No encontrada'});
+    const p=data[0];
+    res.json({id:p.id,titulo:p.titulo,compas:p.compas,instrument:p.instrument,compases:p.compases,creadaEn:p.creada_en});
+  }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
 
+// POST nueva
 app.post('/api/partituras', async (req, res) => {
   try{
-    const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
-    const { titulo, compas, instrument, compases } = req.body;
-    await pool.query(
-      'INSERT INTO partituras (id, titulo, compas, instrument, compases) VALUES ($1,$2,$3,$4,$5)',
-      [id, titulo, compas, instrument, JSON.stringify(compases)]
-    );
+    const id = 'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    const {titulo,compas,instrument,compases} = req.body;
+    await sb('POST', API, {id,titulo,compas,instrument,compases});
     res.json({id});
-  }catch(e){ console.error(e); res.status(500).json({error:'Error'}); }
+  }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
 
+// PUT actualizar
 app.put('/api/partituras/:id', async (req, res) => {
   try{
-    const { titulo, compas, instrument, compases } = req.body;
-    await pool.query(
-      'UPDATE partituras SET titulo=$1, compas=$2, instrument=$3, compases=$4, actualizada_en=NOW() WHERE id=$5',
-      [titulo, compas, instrument, JSON.stringify(compases), req.params.id]
-    );
+    const {titulo,compas,instrument,compases} = req.body;
+    await sb('PATCH', API+'?id=eq.'+req.params.id, {titulo,compas,instrument,compases,actualizada_en:new Date().toISOString()});
     res.json({ok:true});
-  }catch(e){ console.error(e); res.status(500).json({error:'Error'}); }
+  }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
 
+// DELETE
 app.delete('/api/partituras/:id', async (req, res) => {
   try{
-    await pool.query('DELETE FROM partituras WHERE id=$1', [req.params.id]);
+    await sb('DELETE', API+'?id=eq.'+req.params.id);
     res.json({ok:true});
-  }catch(e){ console.error(e); res.status(500).json({error:'Error'}); }
+  }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
 
 const PORT = process.env.PORT || 3000;
-initDB().then(() => {
-  app.listen(PORT, '0.0.0.0', () => console.log(`SaxoApp en puerto ${PORT}`));
-}).catch(e => { console.error('Error iniciando DB:', e); process.exit(1); });
+app.listen(PORT, '0.0.0.0', () => console.log('SaxoApp en puerto '+PORT));
