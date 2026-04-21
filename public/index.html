@@ -272,6 +272,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <option value="alto">🎷 Alto</option><option value="tenor">🎷 Tenor</option>
       <option value="soprano">🎷 Soprano</option><option value="baritono">🎷 Barítono</option>
     </select>
+    <input type="text" id="ed-audio" placeholder="🎵 URL del acompañamiento (opcional)..." style="flex:2;min-width:200px;">
     <label class="import-btn">📄 Importar XML<input type="file" id="xml-file-input" accept=".xml,.musicxml" onchange="importMusicXML(event)"></label>
   </div>
   <div class="legend-bar">
@@ -320,6 +321,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     </div>
     <button class="sound-btn on" id="sound-toggle" onclick="toggleSound()">🔊</button>
     <button class="sound-btn on" id="global-metro-btn" onclick="toggleGlobalMetro()">♩ Metro</button>
+    <button class="sound-btn" id="backing-btn" onclick="toggleBacking()" style="display:none;">🎵 Pista</button>
     <button class="fullscore-btn" onclick="openFullScore()">📄 Partitura</button>
   </div>
   <!-- Progress + loop bar for all modes -->
@@ -464,7 +466,7 @@ function goTo(screen){
   if(screen==='teacher-list')loadTeacherList();
   if(screen==='student-list')loadStudentList();
 }
-function stopAll(){ stopPlayback(); ssStop(); }
+function stopAll(){ stopPlayback(); ssStop(); stopBacking(); }
 
 let toastTimer;
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2400);}
@@ -497,13 +499,14 @@ function newPartitura(){
 }
 async function editPartitura(id){
   const p=await apiGet('/api/partituras/'+id);
-  state.editor={id:p.id,titulo:p.titulo||'',compas:p.compas||'4/4',instrument:p.instrument||'alto',compases:p.compases||[],selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
+  state.editor={id:p.id,titulo:p.titulo||'',compas:p.compas||'4/4',instrument:p.instrument||'alto',compases:p.compases||[],audioUrl:p.audioUrl||'',selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
   renderEditorUI();renderTimeline();goTo('teacher-editor');
 }
 function renderEditorUI(){
   document.getElementById('ed-titulo').value=state.editor.titulo;
   document.getElementById('ed-compas').value=state.editor.compas;
   document.getElementById('ed-instrument').value=state.editor.instrument;
+  document.getElementById('ed-audio').value=state.editor.audioUrl||'';
   document.getElementById('editor-title-bar').textContent=state.editor.id?'Editar partitura':'Nueva partitura';
   renderNotePalette();renderAltButtons();renderFigurePalette();
 }
@@ -601,7 +604,7 @@ function deleteCompas(ci){state.editor.compases.splice(ci,1);renderTimeline();}
 async function savePartitura(){
   const titulo=document.getElementById('ed-titulo').value.trim();
   if(!titulo){showToast('Escribe un título para la partitura');return;}
-  const data={titulo,compas:state.editor.compas,instrument:document.getElementById('ed-instrument').value,compases:state.editor.compases};
+  const data={titulo,compas:state.editor.compas,instrument:document.getElementById('ed-instrument').value,compases:state.editor.compases,audioUrl:document.getElementById('ed-audio').value.trim()};
   try{
     if(state.editor.id){await apiPut('/api/partituras/'+state.editor.id,data);showToast('✓ Partitura actualizada');}
     else{const res=await apiPost('/api/partituras',data);state.editor.id=res.id;showToast('✓ Partitura guardada');}
@@ -695,6 +698,13 @@ async function openPartitura(id){
   document.getElementById('bpm-slider').value=state.student.bpm;
   document.getElementById('bpm-display').textContent=state.student.bpm+' BPM';
   [1,2,4,8].forEach(v=>{const b=document.getElementById('lay-btn-'+v);if(b)b.classList.toggle('active',v===1);});
+  // Show backing track button if partitura has audio
+  const backingBtn=document.getElementById('backing-btn');
+  if(backingBtn){
+    backingBtn.style.display=p.audioUrl?'':'none';
+    backingBtn.classList.remove('on');
+  }
+  stopBacking();
   buildVLSeq();
   setMode(0);goTo('student-view');
 }
@@ -1701,6 +1711,45 @@ function playNoteSound(nota){
 // ══════════════════════════════════════════════════
 function escHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function formatDate(iso){if(!iso)return'';return new Date(iso).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'});}
+
+// ══════════════════════════════════════════════════
+//  BACKING TRACK
+// ══════════════════════════════════════════════════
+let backingAudio = null;
+let backingOn = false;
+
+function toggleBacking(){
+  backingOn ? stopBacking() : startBacking();
+}
+
+function startBacking(){
+  const p = state.student.current;
+  if(!p || !p.audioUrl) return;
+  stopBacking();
+  backingAudio = new Audio(p.audioUrl);
+  backingAudio.loop = false;
+  backingAudio.volume = 0.85;
+  backingAudio.play().then(()=>{
+    backingOn = true;
+    const btn = document.getElementById('backing-btn');
+    if(btn){ btn.classList.add('on'); btn.textContent='⏹ Pista'; }
+    backingAudio.onended = stopBacking;
+  }).catch(e=>{
+    showToast('Error al cargar la pista de audio');
+    console.error(e);
+  });
+}
+
+function stopBacking(){
+  if(backingAudio){
+    backingAudio.pause();
+    backingAudio.currentTime = 0;
+    backingAudio = null;
+  }
+  backingOn = false;
+  const btn = document.getElementById('backing-btn');
+  if(btn){ btn.classList.remove('on'); btn.textContent='🎵 Pista'; }
+}
 
 document.addEventListener('DOMContentLoaded',()=>{
   renderNotePalette();renderAltButtons();renderFigurePalette();
