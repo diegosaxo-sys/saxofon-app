@@ -492,11 +492,15 @@ async function apiDel(p){const r=await fetch(p,{method:'DELETE'});return r.json(
 // ══════════════════════════════════════════════════
 //  TEACHER
 // ══════════════════════════════════════════════════
-let teacherLista = []; // keep in memory for reordering
+let teacherLista = [];
 let dragSrcId = null;
+let dragSrcBloque = null;
 
 async function loadTeacherList(){
   teacherLista = await apiGet('/api/partituras');
+  // Assign initial orden if all are 0
+  const allZero = teacherLista.every(p=>!p.orden);
+  if(allZero) teacherLista.forEach((p,i)=>p.orden=i*10);
   renderTeacherList();
 }
 
@@ -506,30 +510,40 @@ function renderTeacherList(){
     body.innerHTML='<div class="list-empty"><span class="icon">🎼</span><p>No hay partituras todavía.<br>Pulsa + para crear la primera.</p></div>';
     return;
   }
-  // Sort by orden
   teacherLista.sort((a,b)=>(a.orden||0)-(b.orden||0));
-  // Group by bloque
+
+  // Group by bloque preserving order
+  const bloqueOrder = [];
   const bloques = {};
   teacherLista.forEach(p=>{
     const b = p.bloque||'General';
-    if(!bloques[b]) bloques[b]=[];
+    if(!bloques[b]){ bloques[b]=[]; bloqueOrder.push(b); }
     bloques[b].push(p);
   });
+
   let html='';
-  Object.entries(bloques).forEach(([bloque, items])=>{
+  bloqueOrder.forEach(bloque=>{
+    const items = bloques[bloque];
     html+=`<div class="bloque-header">
       <div class="bloque-line"></div>
-      <span class="bloque-badge">📁 ${escHtml(bloque)}</span>
+      <span class="bloque-badge" draggable="true"
+        ondragstart="dragBloqueStart(event,'${escHtml(bloque)}')"
+        ondragover="dragBloqueOver(event,'${escHtml(bloque)}')"
+        ondrop="dragBloqueDrop(event,'${escHtml(bloque)}')"
+        style="cursor:grab;">
+        📁 ${escHtml(bloque)}
+      </span>
       <div class="bloque-line"></div>
-    </div>`;
+    </div>
+    <div class="bloque-items" id="bloque-${bloque.replace(/\s/g,'_')}">`;
     items.forEach(p=>{
       html+=`<div class="partitura-card" id="card-${p.id}"
         draggable="true"
-        ondragstart="dragStart(event,'${p.id}')"
+        ondragstart="dragStart(event,'${p.id}','${escHtml(p.bloque||'General')}')"
         ondragover="dragOver(event)"
         ondragleave="dragLeave(event)"
         ondrop="dragDrop(event,'${p.id}')"
-        ondragend="dragEnd(event)"
+        ondragend="dragEnd()"
         onclick="editPartitura('${p.id}')">
         <span class="drag-handle" onclick="event.stopPropagation()">⠿</span>
         <div style="font-size:1.6rem">${p.audioUrl?'🎵':'🎼'}</div>
@@ -542,40 +556,89 @@ function renderTeacherList(){
           onclick="event.stopPropagation();confirmDelete('${p.id}','${escHtml(p.titulo||'Sin título')}')">🗑</button>
       </div>`;
     });
+    html+=`</div>`;
   });
   body.innerHTML=html;
 }
 
-function dragStart(e, id){
+function dragStart(e, id, bloque){
   dragSrcId=id;
+  dragSrcBloque=bloque;
   e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain', id);
   setTimeout(()=>document.getElementById('card-'+id)?.classList.add('dragging'),0);
 }
 function dragOver(e){
   e.preventDefault();
+  e.stopPropagation();
   e.currentTarget.classList.add('drag-over');
 }
 function dragLeave(e){ e.currentTarget.classList.remove('drag-over'); }
-function dragEnd(e){
+function dragEnd(){
   document.querySelectorAll('.partitura-card').forEach(c=>c.classList.remove('dragging','drag-over'));
+  dragSrcId=null; dragSrcBloque=null;
 }
+
 async function dragDrop(e, targetId){
   e.preventDefault();
+  e.stopPropagation();
   e.currentTarget.classList.remove('drag-over');
   if(!dragSrcId||dragSrcId===targetId) return;
-  // Swap orden values
-  const src = teacherLista.find(p=>p.id===dragSrcId);
-  const tgt = teacherLista.find(p=>p.id===targetId);
-  if(!src||!tgt) return;
-  const srcOrden = src.orden||0, tgtOrden = tgt.orden||0;
-  src.orden=tgtOrden; tgt.orden=srcOrden;
+
+  const srcIdx = teacherLista.findIndex(p=>p.id===dragSrcId);
+  const tgtIdx = teacherLista.findIndex(p=>p.id===targetId);
+  if(srcIdx<0||tgtIdx<0) return;
+
+  // Move src to tgt position
+  const [moved] = teacherLista.splice(srcIdx,1);
+  teacherLista.splice(tgtIdx,0,moved);
+
+  // Reassign orden sequentially (steps of 10)
+  teacherLista.forEach((p,i)=>p.orden=i*10);
+
   renderTeacherList();
-  // Save new orden to server
-  await Promise.all([
-    apiPut('/api/partituras/'+src.id, {...src}),
-    apiPut('/api/partituras/'+tgt.id, {...tgt})
-  ]);
-  dragSrcId=null;
+
+  // Save all orden values to server
+  showToast('Guardando orden...');
+  await Promise.all(teacherLista.map(p=>apiPut('/api/partituras/'+p.id, {...p})));
+  showToast('✓ Orden guardado');
+}
+
+// Bloque drag (move entire block up/down)
+let dragBloqueNombre = null;
+function dragBloqueStart(e, bloque){
+  dragBloqueNombre=bloque;
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain','bloque:'+bloque);
+  e.stopPropagation();
+}
+function dragBloqueOver(e, bloque){
+  e.preventDefault(); e.stopPropagation();
+}
+async function dragBloqueDrop(e, targetBloque){
+  e.preventDefault(); e.stopPropagation();
+  if(!dragBloqueNombre||dragBloqueNombre===targetBloque) return;
+
+  // Get min orden of each bloque to know their relative position
+  const getMinOrden = b => Math.min(...teacherLista.filter(p=>(p.bloque||'General')===b).map(p=>p.orden||0));
+  const srcMin = getMinOrden(dragBloqueNombre);
+  const tgtMin = getMinOrden(targetBloque);
+
+  // Swap bloque positions by adjusting all orden values
+  const srcItems = teacherLista.filter(p=>(p.bloque||'General')===dragBloqueNombre);
+  const tgtItems = teacherLista.filter(p=>(p.bloque||'General')===targetBloque);
+  const offset = tgtMin - srcMin;
+  srcItems.forEach(p=>p.orden=(p.orden||0)+offset+tgtItems.length*10);
+  tgtItems.forEach(p=>p.orden=(p.orden||0)-offset-srcItems.length*10);
+
+  teacherLista.sort((a,b)=>(a.orden||0)-(b.orden||0));
+  teacherLista.forEach((p,i)=>p.orden=i*10);
+
+  renderTeacherList();
+  showToast('Guardando orden...');
+  await Promise.all(teacherLista.map(p=>apiPut('/api/partituras/'+p.id, {...p})));
+  showToast('✓ Orden guardado');
+  dragBloqueNombre=null;
 }
 function confirmDelete(id,titulo){openModal('Eliminar partitura',`¿Eliminar "${titulo}"? No se puede deshacer.`,async()=>{await apiDel('/api/partituras/'+id);showToast('Partitura eliminada');loadTeacherList();});}
 function newPartitura(){
