@@ -51,10 +51,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .list-empty .icon{font-size:3rem;display:block;margin-bottom:1rem;}
 .partitura-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:1rem;cursor:pointer;transition:all 0.2s;box-shadow:var(--shadow);}
 .partitura-card:hover{border-color:var(--accent);transform:translateX(4px);}
+.partitura-card.dragging{opacity:0.4;transform:scale(0.98);}
+.partitura-card.drag-over{border-color:var(--accent);border-style:dashed;transform:translateY(-2px);}
 .partitura-card-info{flex:1;}
 .partitura-card-info h3{font-size:1rem;font-weight:800;}
 .partitura-card-info p{color:var(--muted);font-size:0.82rem;margin-top:0.2rem;}
 .partitura-card-badge{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:0.25rem 0.65rem;font-size:0.78rem;color:var(--muted);white-space:nowrap;font-family:var(--mono);}
+.drag-handle{cursor:grab;font-size:1.1rem;color:var(--muted);padding:0 4px;user-select:none;}
+.drag-handle:active{cursor:grabbing;}
+.bloque-header{display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0 0.3rem;margin-top:0.5rem;}
+.bloque-title{font-size:0.75rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);flex:1;}
+.bloque-line{flex:1;height:1.5px;background:var(--border);}
+.bloque-badge{background:var(--accent-bg);border:1px solid rgba(91,79,207,0.2);border-radius:12px;padding:0.15rem 0.5rem;font-size:0.68rem;font-weight:700;color:var(--accent);}
+.student-bloque{margin-bottom:1.5rem;}
+.student-bloque-title{font-size:0.8rem;font-weight:900;color:var(--accent);text-transform:uppercase;letter-spacing:0.08em;padding:0.4rem 0;border-bottom:2px solid var(--accent-bg);margin-bottom:0.75rem;}
 .fab{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--accent);color:white;border:none;border-radius:50%;width:56px;height:56px;font-size:1.8rem;cursor:pointer;box-shadow:0 4px 16px rgba(91,79,207,0.4);transition:transform 0.2s;display:flex;align-items:center;justify-content:center;z-index:50;}
 .fab:hover{transform:scale(1.1);}
 
@@ -273,6 +283,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <option value="soprano">🎷 Soprano</option><option value="baritono">🎷 Barítono</option>
     </select>
     <input type="text" id="ed-audio" placeholder="🎵 URL del acompañamiento (opcional)..." style="flex:2;min-width:200px;">
+    <input type="text" id="ed-bloque" placeholder="📁 Bloque (ej: Canciones, Ejercicios...)" style="flex:1;min-width:140px;">
     <label class="import-btn">📄 Importar XML<input type="file" id="xml-file-input" accept=".xml,.musicxml" onchange="importMusicXML(event)"></label>
   </div>
   <div class="legend-bar">
@@ -481,25 +492,99 @@ async function apiDel(p){const r=await fetch(p,{method:'DELETE'});return r.json(
 // ══════════════════════════════════════════════════
 //  TEACHER
 // ══════════════════════════════════════════════════
+let teacherLista = []; // keep in memory for reordering
+let dragSrcId = null;
+
 async function loadTeacherList(){
-  const lista=await apiGet('/api/partituras');
-  const body=document.getElementById('teacher-list-body');
-  if(!lista.length){body.innerHTML='<div class="list-empty"><span class="icon">🎼</span><p>No hay partituras todavía.<br>Pulsa + para crear la primera.</p></div>';return;}
-  body.innerHTML=lista.map(p=>`<div class="partitura-card" onclick="editPartitura('${p.id}')">
-    <div style="font-size:1.8rem">🎼</div>
-    <div class="partitura-card-info"><h3>${escHtml(p.titulo||'Sin título')}</h3><p>${p.compas} · ${INSTRUMENT_NAMES[p.instrument]||'Alto'} · ${p.numCompases} compás · ${formatDate(p.creadaEn)}</p></div>
-    <span class="partitura-card-badge">${p.compas}</span>
-    <button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:0.3rem 0.5rem;" onclick="event.stopPropagation();confirmDelete('${p.id}','${escHtml(p.titulo||'Sin título')}')">🗑</button>
-  </div>`).join('');
+  teacherLista = await apiGet('/api/partituras');
+  renderTeacherList();
+}
+
+function renderTeacherList(){
+  const body = document.getElementById('teacher-list-body');
+  if(!teacherLista.length){
+    body.innerHTML='<div class="list-empty"><span class="icon">🎼</span><p>No hay partituras todavía.<br>Pulsa + para crear la primera.</p></div>';
+    return;
+  }
+  // Sort by orden
+  teacherLista.sort((a,b)=>(a.orden||0)-(b.orden||0));
+  // Group by bloque
+  const bloques = {};
+  teacherLista.forEach(p=>{
+    const b = p.bloque||'General';
+    if(!bloques[b]) bloques[b]=[];
+    bloques[b].push(p);
+  });
+  let html='';
+  Object.entries(bloques).forEach(([bloque, items])=>{
+    html+=`<div class="bloque-header">
+      <div class="bloque-line"></div>
+      <span class="bloque-badge">📁 ${escHtml(bloque)}</span>
+      <div class="bloque-line"></div>
+    </div>`;
+    items.forEach(p=>{
+      html+=`<div class="partitura-card" id="card-${p.id}"
+        draggable="true"
+        ondragstart="dragStart(event,'${p.id}')"
+        ondragover="dragOver(event)"
+        ondragleave="dragLeave(event)"
+        ondrop="dragDrop(event,'${p.id}')"
+        ondragend="dragEnd(event)"
+        onclick="editPartitura('${p.id}')">
+        <span class="drag-handle" onclick="event.stopPropagation()">⠿</span>
+        <div style="font-size:1.6rem">${p.audioUrl?'🎵':'🎼'}</div>
+        <div class="partitura-card-info">
+          <h3>${escHtml(p.titulo||'Sin título')}</h3>
+          <p>${p.compas} · ${INSTRUMENT_NAMES[p.instrument]||'Alto'} · ${p.numCompases} compás${p.audioUrl?' · 🎵 Con pista':''}</p>
+        </div>
+        <span class="partitura-card-badge">${escHtml(p.bloque||'General')}</span>
+        <button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:0.3rem 0.5rem;"
+          onclick="event.stopPropagation();confirmDelete('${p.id}','${escHtml(p.titulo||'Sin título')}')">🗑</button>
+      </div>`;
+    });
+  });
+  body.innerHTML=html;
+}
+
+function dragStart(e, id){
+  dragSrcId=id;
+  e.dataTransfer.effectAllowed='move';
+  setTimeout(()=>document.getElementById('card-'+id)?.classList.add('dragging'),0);
+}
+function dragOver(e){
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function dragLeave(e){ e.currentTarget.classList.remove('drag-over'); }
+function dragEnd(e){
+  document.querySelectorAll('.partitura-card').forEach(c=>c.classList.remove('dragging','drag-over'));
+}
+async function dragDrop(e, targetId){
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if(!dragSrcId||dragSrcId===targetId) return;
+  // Swap orden values
+  const src = teacherLista.find(p=>p.id===dragSrcId);
+  const tgt = teacherLista.find(p=>p.id===targetId);
+  if(!src||!tgt) return;
+  const srcOrden = src.orden||0, tgtOrden = tgt.orden||0;
+  src.orden=tgtOrden; tgt.orden=srcOrden;
+  renderTeacherList();
+  // Save new orden to server
+  await Promise.all([
+    apiPut('/api/partituras/'+src.id, {...src}),
+    apiPut('/api/partituras/'+tgt.id, {...tgt})
+  ]);
+  dragSrcId=null;
 }
 function confirmDelete(id,titulo){openModal('Eliminar partitura',`¿Eliminar "${titulo}"? No se puede deshacer.`,async()=>{await apiDel('/api/partituras/'+id);showToast('Partitura eliminada');loadTeacherList();});}
 function newPartitura(){
-  state.editor={id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
+  state.editor={id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],audioUrl:'',bloque:'General',orden:0,selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
   renderEditorUI();addCompas();goTo('teacher-editor');
 }
 async function editPartitura(id){
   const p=await apiGet('/api/partituras/'+id);
-  state.editor={id:p.id,titulo:p.titulo||'',compas:p.compas||'4/4',instrument:p.instrument||'alto',compases:p.compases||[],audioUrl:p.audioUrl||'',selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
+  state.editor={id:p.id,titulo:p.titulo||'',compas:p.compas||'4/4',instrument:p.instrument||'alto',compases:p.compases||[],audioUrl:p.audioUrl||'',bloque:p.bloque||'General',orden:p.orden||0,selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
   renderEditorUI();renderTimeline();goTo('teacher-editor');
 }
 function renderEditorUI(){
@@ -507,6 +592,7 @@ function renderEditorUI(){
   document.getElementById('ed-compas').value=state.editor.compas;
   document.getElementById('ed-instrument').value=state.editor.instrument;
   document.getElementById('ed-audio').value=state.editor.audioUrl||'';
+  document.getElementById('ed-bloque').value=state.editor.bloque||'General';
   document.getElementById('editor-title-bar').textContent=state.editor.id?'Editar partitura':'Nueva partitura';
   renderNotePalette();renderAltButtons();renderFigurePalette();
 }
@@ -604,7 +690,7 @@ function deleteCompas(ci){state.editor.compases.splice(ci,1);renderTimeline();}
 async function savePartitura(){
   const titulo=document.getElementById('ed-titulo').value.trim();
   if(!titulo){showToast('Escribe un título para la partitura');return;}
-  const data={titulo,compas:state.editor.compas,instrument:document.getElementById('ed-instrument').value,compases:state.editor.compases,audioUrl:document.getElementById('ed-audio').value.trim()};
+  const data={titulo,compas:state.editor.compas,instrument:document.getElementById('ed-instrument').value,compases:state.editor.compases,audioUrl:document.getElementById('ed-audio').value.trim(),bloque:document.getElementById('ed-bloque').value.trim()||'General',orden:state.editor.orden||0};
   try{
     if(state.editor.id){await apiPut('/api/partituras/'+state.editor.id,data);showToast('✓ Partitura actualizada');}
     else{const res=await apiPost('/api/partituras',data);state.editor.id=res.id;showToast('✓ Partitura guardada');}
@@ -681,14 +767,37 @@ function setStudentInstrument(inst){
   ['alto','tenor','soprano','baritono'].forEach(i=>document.getElementById('sinst-'+i).classList.toggle('active',i===inst));
 }
 async function loadStudentList(){
-  const lista=await apiGet('/api/partituras');
-  const body=document.getElementById('student-list-body');
-  if(!lista.length){body.innerHTML='<div class="list-empty"><span class="icon">🎼</span><p>No hay partituras disponibles todavía.</p></div>';return;}
-  body.innerHTML=lista.map(p=>`<div class="partitura-card" onclick="openPartitura('${p.id}')">
-    <div style="font-size:1.8rem">🎵</div>
-    <div class="partitura-card-info"><h3>${escHtml(p.titulo||'Sin título')}</h3><p>${p.compas} · ${INSTRUMENT_NAMES[p.instrument]||'Alto'} · ${p.numCompases} compás</p></div>
-    <span style="font-size:1.3rem;color:var(--muted)">→</span>
-  </div>`).join('');
+  const lista = await apiGet('/api/partituras');
+  const body = document.getElementById('student-list-body');
+  if(!lista.length){
+    body.innerHTML='<div class="list-empty"><span class="icon">🎼</span><p>No hay partituras disponibles todavía.</p></div>';
+    return;
+  }
+  // Sort by orden then group by bloque
+  lista.sort((a,b)=>(a.orden||0)-(b.orden||0));
+  const bloques = {};
+  lista.forEach(p=>{
+    const b=p.bloque||'General';
+    if(!bloques[b]) bloques[b]=[];
+    bloques[b].push(p);
+  });
+  let html='';
+  Object.entries(bloques).forEach(([bloque, items])=>{
+    html+=`<div class="student-bloque">
+      <div class="student-bloque-title">📁 ${escHtml(bloque)}</div>`;
+    items.forEach(p=>{
+      html+=`<div class="partitura-card" onclick="openPartitura('${p.id}')">
+        <div style="font-size:1.8rem">${p.audioUrl?'🎵':'🎼'}</div>
+        <div class="partitura-card-info">
+          <h3>${escHtml(p.titulo||'Sin título')}</h3>
+          <p>${p.compas} · ${INSTRUMENT_NAMES[p.instrument]||'Alto'} · ${p.numCompases} compás${p.audioUrl?' · 🎵':''}</p>
+        </div>
+        <span style="font-size:1.3rem;color:var(--muted)">→</span>
+      </div>`;
+    });
+    html+=`</div>`;
+  });
+  body.innerHTML=html;
 }
 async function openPartitura(id){
   const p=await apiGet('/api/partituras/'+id);
