@@ -30,11 +30,13 @@ async function sb(method, url, body){
 // GET todas
 app.get('/api/partituras', async (req, res) => {
   try{
-    const data = await sb('GET', API + '?select=id,titulo,compas,instrument,creada_en,compases,audio_url&order=creada_en.desc');
+    const data = await sb('GET', API + '?select=id,titulo,compas,instrument,creada_en,compases,audio_url,bloque,orden&order=orden.asc,creada_en.desc');
     res.json((data||[]).map(p=>({
       id:p.id, titulo:p.titulo, compas:p.compas,
       instrument:p.instrument, creadaEn:p.creada_en,
       audioUrl:p.audio_url||'',
+      bloque:p.bloque||'General',
+      orden:p.orden||0,
       numCompases: p.compases ? p.compases.length : 0
     })));
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
@@ -46,7 +48,7 @@ app.get('/api/partituras/:id', async (req, res) => {
     const data = await sb('GET', API + '?id=eq.'+req.params.id+'&select=*');
     if(!data||!data.length) return res.status(404).json({error:'No encontrada'});
     const p=data[0];
-    res.json({id:p.id,titulo:p.titulo,compas:p.compas,instrument:p.instrument,compases:p.compases,creadaEn:p.creada_en,audioUrl:p.audio_url||''});
+    res.json({id:p.id,titulo:p.titulo,compas:p.compas,instrument:p.instrument,compases:p.compases,creadaEn:p.creada_en,audioUrl:p.audio_url||'',bloque:p.bloque||'General',orden:p.orden||0});
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
 
@@ -54,8 +56,8 @@ app.get('/api/partituras/:id', async (req, res) => {
 app.post('/api/partituras', async (req, res) => {
   try{
     const id = 'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-    const {titulo,compas,instrument,compases,audioUrl} = req.body;
-    await sb('POST', API, {id,titulo,compas,instrument,compases,audio_url:audioUrl||''});
+    const {titulo,compas,instrument,compases,audioUrl,bloque,orden} = req.body;
+    await sb('POST', API, {id,titulo,compas,instrument,compases,audio_url:audioUrl||'',bloque:bloque||'General',orden:orden||0});
     res.json({id});
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
@@ -63,8 +65,8 @@ app.post('/api/partituras', async (req, res) => {
 // PUT actualizar
 app.put('/api/partituras/:id', async (req, res) => {
   try{
-    const {titulo,compas,instrument,compases,audioUrl} = req.body;
-    await sb('PATCH', API+'?id=eq.'+req.params.id, {titulo,compas,instrument,compases,audio_url:audioUrl||'',actualizada_en:new Date().toISOString()});
+    const {titulo,compas,instrument,compases,audioUrl,bloque,orden} = req.body;
+    await sb('PATCH', API+'?id=eq.'+req.params.id, {titulo,compas,instrument,compases,audio_url:audioUrl||'',bloque:bloque||'General',orden:orden||0,actualizada_en:new Date().toISOString()});
     res.json({ok:true});
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
