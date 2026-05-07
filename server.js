@@ -78,6 +78,35 @@ app.delete('/api/partituras/:id', async (req, res) => {
     res.json({ok:true});
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
+// PROXY para backingtracks de Google Drive
+app.get('/api/audio/:fileId', async (req, res) => {
+  try {
+    const fileId = req.params.fileId;
+    const driveUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+    
+    const response = await fetch(driveUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0'
+      },
+      redirect: 'follow'
+    });
 
+    if (!response.ok) {
+      return res.status(502).json({ error: 'No se pudo obtener el audio de Drive' });
+    }
+
+    const contentType = response.headers.get('content-type') || 'audio/mpeg';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+
+    const buffer = await response.arrayBuffer();
+    res.send(Buffer.from(buffer));
+
+  } catch (e) {
+    console.error('Error proxy audio:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => console.log('SaxoApp en puerto '+PORT));
