@@ -1228,22 +1228,52 @@ const NOTE_NAME_MAP = {
   C:'Do', D:'Re', E:'Mi', F:'Fa', G:'Sol', A:'La', B:'Si'
 };
 
-// Limpia el XML de textos de MuseScore (nombres de nota como Words/Fingering)
-// para que no interfieran con OSMD
+// Limpia el XML de textos de MuseScore y saltos de sistema forzados
 function cleanXML(xmlStr){
   try{
     const parser=new DOMParser();
     const doc=parser.parseFromString(xmlStr,'text/xml');
-    // Eliminar elementos <words> que contienen nombres de nota (Do, Re, Mi...)
+
+    // Eliminar <print new-system="yes"> y <print new-page="yes">
+    // Estos fuerzan saltos que no tienen sentido en pantalla móvil
+    doc.querySelectorAll('print').forEach(p=>{
+      if(p.getAttribute('new-system')==='yes'||p.getAttribute('new-page')==='yes'){
+        // Mantener el elemento print pero quitar los atributos de salto
+        p.removeAttribute('new-system');
+        p.removeAttribute('new-page');
+        // Si el print solo tenía esos atributos y ningún hijo útil, eliminarlo
+        const hasUsefulChildren=p.querySelector('system-layout,page-layout,staff-layout,measure-layout');
+        if(!hasUsefulChildren) p.parentElement?.removeChild(p);
+      }
+    });
+
+    // Eliminar system-layout y page-layout que fuerzan márgenes de MuseScore
+    doc.querySelectorAll('system-layout, page-layout').forEach(el=>el.parentElement?.removeChild(el));
+
+    // Eliminar elementos <words> que contienen nombres de nota
     const noteNames=['Do','Re','Mi','Fa','Sol','La','Si','C','D','E','F','G','A','B'];
     doc.querySelectorAll('words').forEach(w=>{
       const txt=(w.textContent||'').trim();
-      if(noteNames.includes(txt)) w.parentElement?.remove();
+      if(noteNames.includes(txt)){
+        // Eliminar el direction completo, no solo el words
+        const direction=w.closest('direction');
+        if(direction) direction.parentElement?.removeChild(direction);
+        else w.parentElement?.removeChild(w);
+      }
     });
+
     // Eliminar <fingering>
-    doc.querySelectorAll('fingering').forEach(f=>f.parentElement?.remove());
+    doc.querySelectorAll('fingering').forEach(f=>{
+      const direction=f.closest('direction');
+      if(direction) direction.parentElement?.removeChild(direction);
+      else f.parentElement?.removeChild(f);
+    });
+
     return new XMLSerializer().serializeToString(doc);
-  }catch(e){ return xmlStr; }
+  }catch(e){
+    console.warn('cleanXML error:', e);
+    return xmlStr;
+  }
 }
 
 async function renderOSMD(xmlContent, mode, container, forSimplySax=false){
