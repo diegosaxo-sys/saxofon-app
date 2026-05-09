@@ -68,6 +68,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .fab{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--accent);color:white;border:none;border-radius:50%;width:56px;height:56px;font-size:1.8rem;cursor:pointer;box-shadow:0 4px 16px rgba(91,79,207,0.4);transition:transform 0.2s;display:flex;align-items:center;justify-content:center;z-index:50;}
 .fab:hover{transform:scale(1.1);}
 
+/* STOP FAB — botón flotante de parar siempre visible */
+.stop-fab{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#c62828;color:white;border:none;border-radius:40px;padding:0.65rem 1.8rem;font-size:1rem;font-weight:800;cursor:pointer;box-shadow:0 4px 16px rgba(198,40,40,0.4);transition:all 0.2s;display:none;align-items:center;justify-content:center;gap:0.5rem;z-index:200;font-family:var(--font);}
+.stop-fab.visible{display:flex;}
+
 /* EDITOR */
 .editor-config{display:flex;gap:0.5rem;padding:0.7rem 1rem;background:var(--surface);border-bottom:1.5px solid var(--border);flex-wrap:wrap;align-items:center;}
 .editor-config input[type="text"]{flex:1;min-width:140px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:0.45rem 0.75rem;font-family:var(--font);font-size:0.95rem;font-weight:600;outline:none;}
@@ -178,7 +182,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .vnote-dur{font-size:0.55rem;opacity:0.65;font-family:var(--mono);}
 .vnote-rest{background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;}
 
-/* STAFF — SVG is responsive (width:100% height:auto), never clips */
+/* STAFF */
 .staff-wrap{background:white;border-radius:var(--radius-sm);margin:4px 6px 8px;border:1px solid var(--border);display:block;overflow:visible;}
 .staff-wrap svg{display:block;width:100%;height:auto;}
 .svn-ring{transition:opacity 0.08s;}
@@ -335,7 +339,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <button class="sound-btn" id="backing-btn" onclick="toggleBacking()" style="display:none;">🎵 Pista</button>
     <button class="fullscore-btn" onclick="openFullScore()">📄 Partitura</button>
   </div>
-  <!-- Progress + loop bar for all modes -->
   <div class="viewer-loop-bar" id="viewer-loop-bar">
     <span class="ss-loop-label">Inicio:</span>
     <div class="ss-loop-bar-outer" id="viewer-progress-bar">
@@ -347,8 +350,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <button class="ss-btn" id="viewer-loop-btn" onclick="toggleViewerLoop()">⟳ Bucle</button>
   </div>
   <div class="mode-selector">
-    <button class="mode-btn active" id="mode-btn-0" onclick="setMode(0)">🎨 Colores</button>
-    <button class="mode-btn" id="mode-btn-1" onclick="setMode(1)">🔤 Col.+letras</button>
+    <button class="mode-btn active" id="mode-btn-1" onclick="setMode(1)">🔤 Col.+letras</button>
     <button class="mode-btn" id="mode-btn-2" onclick="setMode(2)">⚡ Paralela</button>
     <button class="mode-btn" id="mode-btn-3" onclick="setMode(3)">🎵 Pentagrama</button>
     <button class="mode-btn" id="mode-btn-4" onclick="setMode(4)">🎷 Simply Sax</button>
@@ -423,12 +425,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     </div>
   </div>
 </div>
+
+<!-- BOTÓN FLOTANTE DE PARAR -->
+<button class="stop-fab" id="stop-fab" onclick="stopAll()">⏹ Parar</button>
+
 <div class="toast" id="toast"></div>
 
 <script>
-// ══════════════════════════════════════════════════
-//  CONSTANTS
-// ══════════════════════════════════════════════════
 const NOTE_NAMES=['Do','Re','Mi','Fa','Sol','La','Si'];
 const NOTE_KEYS=['do','re','mi','fa','sol','la','si'];
 const NOTE_COLORS={do:'#E53935',re:'#E64A19',mi:'#F9A825',fa:'#2E7D32',sol:'#1565C0',la:'#6A1B9A',si:'#AD1457'};
@@ -456,20 +459,17 @@ function noteFreq(key,oct,alt,instrument){
   return freq;
 }
 
-// ══════════════════════════════════════════════════
-//  STATE
-// ══════════════════════════════════════════════════
 let state={
   screen:'home',
   editor:{id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null},
-  student:{current:null,mode:0,layout:1,bpm:80,instrument:'alto',playing:false,playTimer:null,playPos:null,soundOn:true}
+  student:{current:null,mode:1,layout:1,bpm:80,instrument:'alto',playing:false,playTimer:null,playPos:null,soundOn:true}
 };
 let audioCtx=null;
 function getAudioCtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
 
-// ══════════════════════════════════════════════════
-//  NAVIGATION
-// ══════════════════════════════════════════════════
+function showStopFab(){document.getElementById('stop-fab').classList.add('visible');}
+function hideStopFab(){document.getElementById('stop-fab').classList.remove('visible');}
+
 function goTo(screen){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+screen).classList.add('active');
@@ -489,16 +489,12 @@ async function apiPost(p,d){const r=await fetch(p,{method:'POST',headers:{'Conte
 async function apiPut(p,d){const r=await fetch(p,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});return r.json();}
 async function apiDel(p){const r=await fetch(p,{method:'DELETE'});return r.json();}
 
-// ══════════════════════════════════════════════════
-//  TEACHER
-// ══════════════════════════════════════════════════
 let teacherLista = [];
 let dragSrcId = null;
 let dragSrcBloque = null;
 
 async function loadTeacherList(){
   teacherLista = await apiGet('/api/partituras');
-  // Assign initial orden if all are 0
   const allZero = teacherLista.every(p=>!p.orden);
   if(allZero) teacherLista.forEach((p,i)=>p.orden=i*10);
   renderTeacherList();
@@ -511,8 +507,6 @@ function renderTeacherList(){
     return;
   }
   teacherLista.sort((a,b)=>(a.orden||0)-(b.orden||0));
-
-  // Group by bloque preserving order
   const bloqueOrder = [];
   const bloques = {};
   teacherLista.forEach(p=>{
@@ -520,7 +514,6 @@ function renderTeacherList(){
     if(!bloques[b]){ bloques[b]=[]; bloqueOrder.push(b); }
     bloques[b].push(p);
   });
-
   let html='';
   bloqueOrder.forEach(bloque=>{
     const items = bloques[bloque];
@@ -562,85 +555,54 @@ function renderTeacherList(){
 }
 
 function dragStart(e, id, bloque){
-  dragSrcId=id;
-  dragSrcBloque=bloque;
-  e.dataTransfer.effectAllowed='move';
-  e.dataTransfer.setData('text/plain', id);
+  dragSrcId=id;dragSrcBloque=bloque;
+  e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain', id);
   setTimeout(()=>document.getElementById('card-'+id)?.classList.add('dragging'),0);
 }
-function dragOver(e){
-  e.preventDefault();
-  e.stopPropagation();
-  e.currentTarget.classList.add('drag-over');
-}
-function dragLeave(e){ e.currentTarget.classList.remove('drag-over'); }
-function dragEnd(){
-  document.querySelectorAll('.partitura-card').forEach(c=>c.classList.remove('dragging','drag-over'));
-  dragSrcId=null; dragSrcBloque=null;
-}
+function dragOver(e){e.preventDefault();e.stopPropagation();e.currentTarget.classList.add('drag-over');}
+function dragLeave(e){e.currentTarget.classList.remove('drag-over');}
+function dragEnd(){document.querySelectorAll('.partitura-card').forEach(c=>c.classList.remove('dragging','drag-over'));dragSrcId=null;dragSrcBloque=null;}
 
 async function dragDrop(e, targetId){
-  e.preventDefault();
-  e.stopPropagation();
-  e.currentTarget.classList.remove('drag-over');
+  e.preventDefault();e.stopPropagation();e.currentTarget.classList.remove('drag-over');
   if(!dragSrcId||dragSrcId===targetId) return;
-
   const srcIdx = teacherLista.findIndex(p=>p.id===dragSrcId);
   const tgtIdx = teacherLista.findIndex(p=>p.id===targetId);
   if(srcIdx<0||tgtIdx<0) return;
-
-  // Move src to tgt position
   const [moved] = teacherLista.splice(srcIdx,1);
   teacherLista.splice(tgtIdx,0,moved);
-
-  // Reassign orden sequentially (steps of 10)
   teacherLista.forEach((p,i)=>p.orden=i*10);
-
   renderTeacherList();
-
-  // Save all orden values to server
   showToast('Guardando orden...');
   await Promise.all(teacherLista.map(p=>apiPut('/api/partituras/'+p.id, {...p})));
   showToast('✓ Orden guardado');
 }
 
-// Bloque drag (move entire block up/down)
 let dragBloqueNombre = null;
-function dragBloqueStart(e, bloque){
-  dragBloqueNombre=bloque;
-  e.dataTransfer.effectAllowed='move';
-  e.dataTransfer.setData('text/plain','bloque:'+bloque);
-  e.stopPropagation();
-}
-function dragBloqueOver(e, bloque){
-  e.preventDefault(); e.stopPropagation();
-}
+function dragBloqueStart(e, bloque){dragBloqueNombre=bloque;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','bloque:'+bloque);e.stopPropagation();}
+function dragBloqueOver(e, bloque){e.preventDefault();e.stopPropagation();}
 async function dragBloqueDrop(e, targetBloque){
-  e.preventDefault(); e.stopPropagation();
+  e.preventDefault();e.stopPropagation();
   if(!dragBloqueNombre||dragBloqueNombre===targetBloque) return;
-
-  // Get min orden of each bloque to know their relative position
   const getMinOrden = b => Math.min(...teacherLista.filter(p=>(p.bloque||'General')===b).map(p=>p.orden||0));
   const srcMin = getMinOrden(dragBloqueNombre);
   const tgtMin = getMinOrden(targetBloque);
-
-  // Swap bloque positions by adjusting all orden values
   const srcItems = teacherLista.filter(p=>(p.bloque||'General')===dragBloqueNombre);
   const tgtItems = teacherLista.filter(p=>(p.bloque||'General')===targetBloque);
   const offset = tgtMin - srcMin;
   srcItems.forEach(p=>p.orden=(p.orden||0)+offset+tgtItems.length*10);
   tgtItems.forEach(p=>p.orden=(p.orden||0)-offset-srcItems.length*10);
-
   teacherLista.sort((a,b)=>(a.orden||0)-(b.orden||0));
   teacherLista.forEach((p,i)=>p.orden=i*10);
-
   renderTeacherList();
   showToast('Guardando orden...');
   await Promise.all(teacherLista.map(p=>apiPut('/api/partituras/'+p.id, {...p})));
   showToast('✓ Orden guardado');
   dragBloqueNombre=null;
 }
+
 function confirmDelete(id,titulo){openModal('Eliminar partitura',`¿Eliminar "${titulo}"? No se puede deshacer.`,async()=>{await apiDel('/api/partituras/'+id);showToast('Partitura eliminada');loadTeacherList();});}
+
 function newPartitura(){
   state.editor={id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],audioUrl:'',bloque:'General',orden:0,selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
   renderEditorUI();addCompas();goTo('teacher-editor');
@@ -760,9 +722,6 @@ async function savePartitura(){
   }catch(e){showToast('Error al guardar');}
 }
 
-// ══════════════════════════════════════════════════
-//  MUSICXML IMPORT
-// ══════════════════════════════════════════════════
 function importMusicXML(event){
   const file=event.target.files[0];if(!file)return;
   const reader=new FileReader();
@@ -822,9 +781,6 @@ function parseMusicXML(xml){
   showToast(`✓ Importados ${newCompases.length} compases`);
 }
 
-// ══════════════════════════════════════════════════
-//  STUDENT
-// ══════════════════════════════════════════════════
 function setStudentInstrument(inst){
   state.student.instrument=inst;
   ['alto','tenor','soprano','baritono'].forEach(i=>document.getElementById('sinst-'+i).classList.toggle('active',i===inst));
@@ -836,7 +792,6 @@ async function loadStudentList(){
     body.innerHTML='<div class="list-empty"><span class="icon">🎼</span><p>No hay partituras disponibles todavía.</p></div>';
     return;
   }
-  // Sort by orden then group by bloque
   lista.sort((a,b)=>(a.orden||0)-(b.orden||0));
   const bloques = {};
   lista.forEach(p=>{
@@ -864,27 +819,23 @@ async function loadStudentList(){
 }
 async function openPartitura(id){
   const p=await apiGet('/api/partituras/'+id);
-  state.student.current=p;state.student.mode=0;state.student.layout=1;
+  state.student.current=p;state.student.mode=1;state.student.layout=1;
   state.student.playing=false;state.student.playPos=null;
   document.getElementById('viewer-title').textContent=p.titulo||'Partitura';
   document.getElementById('bpm-slider').value=state.student.bpm;
   document.getElementById('bpm-display').textContent=state.student.bpm+' BPM';
   [1,2,4,8].forEach(v=>{const b=document.getElementById('lay-btn-'+v);if(b)b.classList.toggle('active',v===1);});
-  // Show backing track button if partitura has audio
   const backingBtn=document.getElementById('backing-btn');
-  if(backingBtn){
-    backingBtn.style.display=p.audioUrl?'':'none';
-    backingBtn.classList.remove('on');
-  }
+  if(backingBtn){backingBtn.style.display=p.audioUrl?'':'none';backingBtn.classList.remove('on');}
   stopBacking();
   buildVLSeq();
-  setMode(0);goTo('student-view');
+  setMode(1);goTo('student-view');
 }
 
 function setMode(mode){
   stopPlayback();ssStop();
   state.student.mode=mode;
-  for(let i=0;i<5;i++){const b=document.getElementById('mode-btn-'+i);if(b)b.classList.toggle('active',i===mode);}
+  [1,2,3,4].forEach(i=>{const b=document.getElementById('mode-btn-'+i);if(b)b.classList.toggle('active',i===mode);});
   const isSimply=(mode===4);
   document.getElementById('viewer-wrap').style.display=isSimply?'none':'';
   document.getElementById('ss-wrap').style.display=isSimply?'flex':'none';
@@ -901,10 +852,6 @@ function setLayout(n){
   renderViewer();
 }
 
-// ══════════════════════════════════════════════════
-//  VEXFLOW HELPER — renders one compas into a div
-//  Returns the SVG element (pixel-exact, no scaling)
-// ══════════════════════════════════════════════════
 function renderCompasVex(compasData, compasStr, mode, onNoteClick){
   const showColors=(mode===2);
   const notasIdx=[];
@@ -949,14 +896,9 @@ function renderCompasVex(compasData, compasStr, mode, onNoteClick){
   el('line',{x1:W-8,y1:STAFF_Y,x2:W-8,y2:STAFF_Y+STAFF_H,stroke:'#111','stroke-width':'1.2'},svg);
   el('line',{x1:W-4,y1:STAFF_Y,x2:W-4,y2:STAFF_Y+STAFF_H,stroke:'#111','stroke-width':'3'},svg);
 
-  // Treble clef — Georgia 𝄞 glyph: curl is ~20% from bottom of em box
-  // G line = step 6 = STAFF_Y + 3*LS
-  // We want curl there, so anchor (baseline) = G_line + clefSize*0.20
   const clefSize=LS*4.6;
   const clefY=STAFF_Y+3*LS+clefSize*0.20;
-  tx('\u{1D11E}',{x:11,y:clefY,'font-size':clefSize,
-    'font-family':'Georgia,Times New Roman,serif',fill:'#111',
-    'dominant-baseline':'auto'},svg);
+  tx('\u{1D11E}',{x:11,y:clefY,'font-size':clefSize,'font-family':'Georgia,Times New Roman,serif',fill:'#111','dominant-baseline':'auto'},svg);
 
   const [tn,td]=compasStr.split('/');
   tx(tn,{x:CLEF_W-4,y:STAFF_Y+LS*1.25,'font-size':LS*1.55,'font-weight':'bold','font-family':'Georgia,serif',fill:'#111','text-anchor':'middle','dominant-baseline':'middle'},svg);
@@ -993,11 +935,8 @@ function renderCompasVex(compasData, compasStr, mode, onNoteClick){
     }
 
     if(nota.type==='rest'){
-      // Whole rest: hangs below 4th line = sy(2)
-      // Half rest:  sits ON middle (3rd) line = sy(4), rect above it
-      // Others: centred on staff
-      const line4Y=sy(2); // 4th line from bottom
-      const line3Y=sy(4); // middle line
+      const line4Y=sy(2);
+      const line3Y=sy(4);
       if(fig.id==='redonda'){
         el('rect',{x:x-11,y:line4Y,width:22,height:LS*0.65,fill:'#333'},g);
       } else if(fig.id==='blanca'){
@@ -1022,7 +961,6 @@ function renderCompasVex(compasData, compasStr, mode, onNoteClick){
       if(step<0) for(let p=Math.ceil(step/2)*2;p<0;p+=2) el('line',{x1:x-13,y1:sy(p),x2:x+13,y2:sy(p),stroke:color,'stroke-width':'1.3'},g);
       if(step>8) for(let p=10;p<=step;p+=2) el('line',{x1:x-13,y1:sy(p),x2:x+13,y2:sy(p),stroke:color,'stroke-width':'1.3'},g);
 
-      // Note head
       if(fig.id==='redonda'){
         el('ellipse',{cx:x,cy:ny,rx:hrx+1,ry:hry,fill:color},g);
         el('ellipse',{cx:x+1,cy:ny,rx:hrx-2,ry:hry-2,fill:'white',transform:'rotate(-20 '+x+' '+ny+')'},g);
@@ -1086,7 +1024,7 @@ function renderViewer(){
       html+=`<div class="compases-row">`;
       row.forEach(({c,ci})=>{
         html+=`<div class="viewer-compas"><div class="viewer-compas-header"><span>Compás ${ci+1}</span><span>${compas}</span></div>`;
-        if(mode===0||mode===1){
+        if(mode===1){
           html+=`<div class="viewer-cells">`;
           for(let gi=0;gi<numGroups;gi++){if(gi>0)html+='<div class="viewer-beat-sep"></div>';for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,mode,ci,ni,true);}}
           html+=`</div>`;
@@ -1103,13 +1041,9 @@ function renderViewer(){
       if(!div)return;
       div.innerHTML='';
       const svg=renderCompasVex({...c,_ci:ci},p.compas||'4/4',mode,(clickCi,clickNi)=>{
-        // Find global index in VL.seq and start from there
-        if(!VL.seq.length){
-          startPlayback();
-          return;
-        }
+        if(!VL.seq.length){startPlayback();return;}
         const idx=VL.seq.findIndex(s=>s.ci===clickCi&&s.ni===clickNi);
-        if(idx>=0){ stopPlayback(); startPlayback(idx); }
+        if(idx>=0){stopPlayback();startPlayback(idx);}
       });
       if(svg)div.appendChild(svg);
     });
@@ -1118,7 +1052,7 @@ function renderViewer(){
 
 function renderCompasBlockHtml(c,ci,mode,compas,numGroups,bpg){
   let html=`<div class="viewer-compas"><div class="viewer-compas-header"><span>Compás ${ci+1}</span><span>${compas}</span></div>`;
-  if(mode===0||mode===1){
+  if(mode===1){
     html+=`<div class="viewer-cells">`;
     for(let gi=0;gi<numGroups;gi++){if(gi>0)html+='<div class="viewer-beat-sep"></div>';for(let bi=0;bi<bpg;bi++){const ni=gi*bpg+bi,nota=c.notas[ni];if(nota==='skip'||nota===null)continue;html+=renderViewerNote(nota,mode,ci,ni,false);}}
     html+=`</div>`;
@@ -1135,21 +1069,18 @@ function renderViewerNote(nota,mode,ci,ni,compact=false){
   const playActive=state.student.playing&&state.student.playPos&&state.student.playPos.ci===ci&&state.student.playPos.ni===ni;
   if(nota.type==='rest'){
     return`<div class="vnote vnote-rest${playActive?' active-note':''}" style="width:${size}px;height:${size}px;" id="vn-${ci}-${ni}" onclick="viewerNoteClick(${ci},${ni})">
-      ${mode===1?'<span style="font-size:0.95rem">𝄽</span>':''}<span class="vnote-dur">${fig.glyph}${dot?'·':''}</span></div>`;
+      <span style="font-size:0.95rem">𝄽</span><span class="vnote-dur">${fig.glyph}${dot?'·':''}</span></div>`;
   }
   const color=NOTE_COLORS[nota.key],tc=NOTE_TEXT[nota.key];
   const noteName=NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)],octSuf=OCTAVAS[nota.oct]?.suffix||'';
   return`<div class="vnote${playActive?' active-note':''}" style="width:${size}px;height:${size}px;background:${color};cursor:pointer;" id="vn-${ci}-${ni}" onclick="viewerNoteClick(${ci},${ni})">
-    ${mode===1?`<span class="vnote-alt" style="color:${tc};font-size:0.65rem">${altSym(nota.alt)}</span>`:''}
-    ${mode===1?`<span class="vnote-name" style="font-size:${fs}rem;color:${tc}">${noteName}</span>`:''}
-    ${mode===1?`<span class="vnote-dur" style="color:${tc};font-size:0.5rem">${fig.glyph}${dot?'·':''}${octSuf}</span>`:''}
-    ${nota.oct>0&&mode===0?`<span style="position:absolute;bottom:2px;right:3px;font-size:0.48rem;color:${tc};opacity:0.8">${octSuf}</span>`:''}
+    <span class="vnote-alt" style="color:${tc};font-size:0.65rem">${altSym(nota.alt)}</span>
+    <span class="vnote-name" style="font-size:${fs}rem;color:${tc}">${noteName}</span>
+    <span class="vnote-dur" style="color:${tc};font-size:0.5rem">${fig.glyph}${dot?'·':''}${octSuf}</span>
+    ${nota.oct>0?`<span style="position:absolute;bottom:2px;right:3px;font-size:0.48rem;color:${tc};opacity:0.8">${octSuf}</span>`:''}
   </div>`;
 }
 
-// ══════════════════════════════════════════════════
-//  FULL SCORE
-// ══════════════════════════════════════════════════
 function openFullScore(){
   const p=state.student.current;if(!p){showToast('Abre una partitura primero');return;}
   document.getElementById('fullscore-title').textContent=p.titulo||'Partitura';
@@ -1189,9 +1120,6 @@ function openFullScore(){
 }
 function closeFullScore(){document.getElementById('fullscore-overlay').classList.remove('open');}
 
-// ══════════════════════════════════════════════════
-//  SIMPLY SAX ENGINE
-// ══════════════════════════════════════════════════
 const SS={
   notes:[],activeIdx:-1,playing:false,
   loopStart:0,loopEnd:0,loopActive:false,
@@ -1208,8 +1136,7 @@ function ssFlatNotes(){
       if(nota&&nota!=='skip'){
         const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
         const dot=nota.dot&&fig.dot_val,val=dot?fig.dot_val:fig.val;
-        out.push({nota,ci,ni,dur_ms:val*(60000/state.student.bpm/4),
-          color:nota.type==='note'?(NOTE_COLORS[nota.key]||'#888'):'#888'});
+        out.push({nota,ci,ni,dur_ms:val*(60000/state.student.bpm/4),color:nota.type==='note'?(NOTE_COLORS[nota.key]||'#888'):'#888'});
       }
     });
   });
@@ -1221,8 +1148,6 @@ function ssInit(){
   SS.notes=ssFlatNotes();
   SS.activeIdx=-1;SS.playing=false;SS.loopStart=0;SS.loopEnd=SS.notes.length-1;
   SS.beatCount=0;
-
-  // Build VexFlow SVG across ALL compases joined together
   const staffScroll=document.getElementById('ss-staff-scroll');
   staffScroll.innerHTML='';
   ssRenderStaff(p);
@@ -1234,7 +1159,6 @@ function ssRenderStaff(p){
   const compasStr = p.compas||'4/4';
   const staffScroll = document.getElementById('ss-staff-scroll');
   staffScroll.innerHTML='';
-
   const allIdx=[];
   let gi=0;
   p.compases.forEach((c,ci)=>{
@@ -1243,21 +1167,18 @@ function ssRenderStaff(p){
     });
   });
   if(!allIdx.length) return;
-
   const LS=10, STAFF_H=4*LS;
   const LBL_H=16, PAD_T=22, PAD_B=18;
   const CLEF_W=52, SLOT=64;
   const W=CLEF_W+allIdx.length*SLOT+20;
   const STAFF_Y=LBL_H+PAD_T;
   const H=STAFF_Y+STAFF_H+PAD_B;
-
   const STEPS={
     'do-0':10,'re-0':9,'mi-0':8,'fa-0':7,'sol-0':6,'la-0':5,'si-0':4,
     'do-1':3,'re-1':2,'mi-1':1,'fa-1':0,'sol-1':-1,'la-1':-2,'si-1':-3,
     'do-2':-4,'re-2':-5,'mi-2':-6,'fa-2':-7,'sol-2':-8
   };
   function sy(step){ return STAFF_Y+step*(LS/2); }
-
   const NS='http://www.w3.org/2000/svg';
   function el(tag,attrs,parent){
     const e=document.createElementNS(NS,tag);
@@ -1269,40 +1190,21 @@ function ssRenderStaff(p){
     Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));
     e.textContent=text; if(parent)parent.appendChild(e); return e;
   }
-
-  // Fixed pixel width for horizontal scroll
-  const svg=el('svg',{xmlns:NS,viewBox:`0 0 ${W} ${H}`,
-    style:`display:block;width:${W}px;height:${H}px;`});
+  const svg=el('svg',{xmlns:NS,viewBox:`0 0 ${W} ${H}`,style:`display:block;width:${W}px;height:${H}px;`});
   el('rect',{width:W,height:H,fill:'white'},svg);
-
-  // Staff lines
-  for(let l=0;l<5;l++){
-    el('line',{x1:8,y1:STAFF_Y+l*LS,x2:W-6,y2:STAFF_Y+l*LS,stroke:'#1a1a1a','stroke-width':'1'},svg);
-  }
+  for(let l=0;l<5;l++) el('line',{x1:8,y1:STAFF_Y+l*LS,x2:W-6,y2:STAFF_Y+l*LS,stroke:'#1a1a1a','stroke-width':'1'},svg);
   el('line',{x1:8,y1:STAFF_Y,x2:8,y2:STAFF_Y+STAFF_H,stroke:'#1a1a1a','stroke-width':'1.2'},svg);
   el('line',{x1:W-8,y1:STAFF_Y,x2:W-8,y2:STAFF_Y+STAFF_H,stroke:'#1a1a1a','stroke-width':'1.2'},svg);
   el('line',{x1:W-5,y1:STAFF_Y,x2:W-5,y2:STAFF_Y+STAFF_H,stroke:'#1a1a1a','stroke-width':'2.5'},svg);
-
-  // Treble clef — same calibration as renderCompasVex
   const ssClefSize=LS*4.6;
   const ssClefY=STAFF_Y+3*LS+ssClefSize*0.20;
-  tx('𝄞',{x:12,y:ssClefY,'font-size':ssClefSize,
-    'font-family':'Georgia,Times New Roman,serif',
-    fill:'#1a1a1a','dominant-baseline':'auto'},svg);
-
-  // Time sig
+  tx('𝄞',{x:12,y:ssClefY,'font-size':ssClefSize,'font-family':'Georgia,Times New Roman,serif',fill:'#1a1a1a','dominant-baseline':'auto'},svg);
   const[tn,td]=compasStr.split('/');
-  tx(tn,{x:CLEF_W-4,y:STAFF_Y+LS*1.2,'font-size':LS*1.5,'font-weight':'bold',
-    'font-family':'serif',fill:'#1a1a1a','text-anchor':'middle','dominant-baseline':'middle'},svg);
-  tx(td,{x:CLEF_W-4,y:STAFF_Y+LS*3,'font-size':LS*1.5,'font-weight':'bold',
-    'font-family':'serif',fill:'#1a1a1a','text-anchor':'middle','dominant-baseline':'middle'},svg);
-
-  // Style
+  tx(tn,{x:CLEF_W-4,y:STAFF_Y+LS*1.2,'font-size':LS*1.5,'font-weight':'bold','font-family':'serif',fill:'#1a1a1a','text-anchor':'middle','dominant-baseline':'middle'},svg);
+  tx(td,{x:CLEF_W-4,y:STAFF_Y+LS*3,'font-size':LS*1.5,'font-weight':'bold','font-family':'serif',fill:'#1a1a1a','text-anchor':'middle','dominant-baseline':'middle'},svg);
   const styleEl=document.createElementNS(NS,'style');
   styleEl.textContent='.ss-ring{transition:opacity .06s}.ss-active .ss-ring{opacity:.22}';
   svg.appendChild(styleEl);
-
-  // Barlines between compases
   let prevCi=-1;
   allIdx.forEach(({ci},i)=>{
     if(ci!==prevCi&&i>0){
@@ -1312,8 +1214,6 @@ function ssRenderStaff(p){
     }
     prevCi=ci;
   });
-
-  // Notes
   allIdx.forEach(({nota,ci,ni,gi:gidx},i)=>{
     const x=CLEF_W+i*SLOT+SLOT/2;
     const color=nota.type==='note'?(NOTE_COLORS[nota.key]||'#333'):'#777';
@@ -1322,31 +1222,21 @@ function ssRenderStaff(p){
     const octS=nota.type==='note'?(OCTAVAS[nota.oct]?.suffix||''):'';
     const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
     const dot=nota.dot&&fig.dot_val;
-
     const g=el('g',{id:'ss-'+gidx,class:'ss-note',style:'cursor:pointer'},svg);
     g.addEventListener('click',()=>ssSetStart(gidx));
     el('rect',{class:'ss-ring',x:x-28,y:0,width:56,height:H,rx:4,fill:color,opacity:0},g);
-
-    // Label above staff
     if(nota.type==='note'){
-      tx(altS+nm+(octS?' '+octS:''),{x,y:STAFF_Y-5,
-        'text-anchor':'middle','dominant-baseline':'auto',
-        'font-size':12,'font-weight':900,'font-family':'Nunito,sans-serif',fill:color},g);
+      tx(altS+nm+(octS?' '+octS:''),{x,y:STAFF_Y-5,'text-anchor':'middle','dominant-baseline':'auto','font-size':12,'font-weight':900,'font-family':'Nunito,sans-serif',fill:color},g);
     }
-
     if(nota.type==='rest'){
-      const line4Y=sy(2); // 4th line — whole rest hangs below
-      const line3Y=sy(4); // middle line — half rest sits on top
+      const line4Y=sy(2);
+      const line3Y=sy(4);
       if(fig.id==='redonda'){
         el('rect',{x:x-11,y:line4Y,width:22,height:LS*0.65,fill:'#333'},g);
       } else if(fig.id==='blanca'){
         el('rect',{x:x-11,y:line3Y-LS*0.65,width:22,height:LS*0.65,fill:'#333'},g);
       } else {
-        const rp={
-          negra:'M0,-6 C4,-4 5,0 3,4 C1,8 -2,8 -2,12 C-2,14 0,15 0,15 C-4,13 -5,9 -3,5 C-1,1 2,-2 2,-6 Z',
-          corchea:'M0,0 C8,-2 10,-10 6,-14 C10,-12 10,-6 4,-2 C2,0 2,4 0,8 Z',
-          semicorchea:'M0,0 C8,-2 10,-10 6,-14 C10,-12 10,-6 4,-2 C2,0 2,4 0,8 Z M4,-8 C12,-10 14,-18 10,-22 C14,-20 14,-14 8,-10 Z'
-        };
+        const rp={negra:'M0,-6 C4,-4 5,0 3,4 C1,8 -2,8 -2,12 C-2,14 0,15 0,15 C-4,13 -5,9 -3,5 C-1,1 2,-2 2,-6 Z',corchea:'M0,0 C8,-2 10,-10 6,-14 C10,-12 10,-6 4,-2 C2,0 2,4 0,8 Z',semicorchea:'M0,0 C8,-2 10,-10 6,-14 C10,-12 10,-6 4,-2 C2,0 2,4 0,8 Z M4,-8 C12,-10 14,-18 10,-22 C14,-20 14,-14 8,-10 Z'};
         el('path',{d:rp[fig.id]||rp.negra,fill:'#333',transform:'translate('+x+','+sy(3)+') scale(1.2)'},g);
       }
       if(dot) el('circle',{cx:x+16,cy:line4Y-3,r:2.2,fill:'#333'},g);
@@ -1356,12 +1246,8 @@ function ssRenderStaff(p){
       const ny=sy(step);
       const stemUp=step>=2;
       const hrx=7.5,hry=5;
-
-      // Ledger lines
       if(step<0) for(let p=Math.ceil(step/2)*2;p<0;p+=2) el('line',{x1:x-12,y1:sy(p),x2:x+12,y2:sy(p),stroke:color,'stroke-width':'1.2'},g);
       if(step>8) for(let p=10;p<=step;p+=2) el('line',{x1:x-12,y1:sy(p),x2:x+12,y2:sy(p),stroke:color,'stroke-width':'1.2'},g);
-
-      // Note head
       if(fig.id==='redonda'){
         el('ellipse',{cx:x,cy:ny,rx:hrx,ry:hry,fill:color},g);
         el('ellipse',{cx:x,cy:ny,rx:hrx-3,ry:hry-2.5,transform:`rotate(-15,${x},${ny})`,fill:'white'},g);
@@ -1370,12 +1256,9 @@ function ssRenderStaff(p){
       } else {
         el('ellipse',{cx:x,cy:ny,rx:hrx,ry:hry,transform:`rotate(-15,${x},${ny})`,fill:color},g);
       }
-
       if(nota.alt==='sharp') tx('♯',{x:x-hrx-6,y:ny+5,'font-size':LS*1.4,'font-family':'serif',fill:color,'text-anchor':'middle'},g);
       if(nota.alt==='flat')  tx('♭',{x:x-hrx-5,y:ny+6,'font-size':LS*1.6,'font-family':'serif',fill:color,'text-anchor':'middle'},g);
       if(dot){const dy=step%2===0?ny-LS/2:ny; el('circle',{cx:x+hrx+5,cy:dy,r:2.5,fill:color},g);}
-
-      // Stem + flags
       if(fig.id!=='redonda'){
         const stemLen=LS*3.2;
         if(stemUp){
@@ -1390,8 +1273,6 @@ function ssRenderStaff(p){
           if(fig.id==='semicorchea') el('path',{d:`M${sx},${sy2-10} C${sx+14},${sy2-16} ${sx+12},${sy2-24} ${sx+6},${sy2-26}`,fill:'none',stroke:color,'stroke-width':1.6},g);
         }
       }
-
-      // Tie
       if(nota.tied&&i<allIdx.length-1){
         const nx2=CLEF_W+(i+1)*SLOT+SLOT/2;
         const ty=stemUp?ny+hry+3:ny-hry-3;
@@ -1399,7 +1280,6 @@ function ssRenderStaff(p){
       }
     }
   });
-
   staffScroll.appendChild(svg);
   SS.xPos=allIdx.map((_,i)=>CLEF_W+i*SLOT+SLOT/2);
 }
@@ -1407,27 +1287,22 @@ function ssRenderStaff(p){
 function ssStop(){
   SS.playing=false;clearTimeout(SS.timer);
   stopGlobalMetro();
+  hideStopFab();
   document.getElementById('play-btn').textContent='▶';
   document.querySelectorAll('.ss-active').forEach(el=>el.classList.remove('ss-active'));
 }
 function toggleSSPlayback(){SS.playing?ssStop():ssStart();}
 function ssSetStart(idx){
-  SS.activeIdx=idx;
-  ssHighlight(idx);
-  ssScrollToNote(idx);
-  updateSSHUD(idx);
-  if(SS.playing){ ssStop(); setTimeout(ssStart,50); }
+  SS.activeIdx=idx;ssHighlight(idx);ssScrollToNote(idx);updateSSHUD(idx);
+  if(SS.playing){ssStop();setTimeout(ssStart,50);}
 }
-
 function ssBeatOffset(startIdx){
-  // Calculate which beat within the bar the note at startIdx falls on
-  const p=state.student.current; if(!p) return 0;
-  const item=SS.notes[startIdx]; if(!item) return 0;
-  const c=p.compases[item.ci]; if(!c) return 0;
+  const p=state.student.current;if(!p) return 0;
+  const item=SS.notes[startIdx];if(!item) return 0;
+  const c=p.compases[item.ci];if(!c) return 0;
   const compasStr=p.compas||'4/4';
   const[n]=compasStr.split('/');
   const bpb=parseInt(n)||4;
-  // Count beat-slots before this note's position in its compas
   let slots=0;
   for(let k=0;k<item.ni;k++){
     const nota=c.notas[k];
@@ -1439,20 +1314,18 @@ function ssBeatOffset(startIdx){
   }
   return Math.round(slots/4)%bpb;
 }
-
 function ssStart(){
   if(!SS.notes.length)return;
   SS.playing=true;document.getElementById('play-btn').textContent='⏹';
+  showStopFab();
   if(SS.activeIdx<0||SS.activeIdx>=SS.notes.length)SS.activeIdx=SS.loopStart;
   const ctx=getAudioCtx();
   if(ctx.state==='suspended')ctx.resume();
   SS.audioStartTime=ctx.currentTime+0.05;
   SS.noteScheduleTime=SS.audioStartTime;
-  // Start metro with correct beat offset so accent aligns with bar position
   startGlobalMetro(SS.audioStartTime, ssBeatOffset(SS.activeIdx));
   ssScheduleNotes(SS.activeIdx);
 }
-
 function ssScheduleNotes(idx){
   if(!SS.playing)return;
   const endIdx=SS.loopActive?SS.loopEnd:SS.notes.length-1;
@@ -1469,31 +1342,17 @@ function ssScheduleNotes(idx){
     }
     return;
   }
-
   SS.activeIdx=idx;
   const item=SS.notes[idx];
-
-  // Schedule note sound at exact audio time
   const ctx=getAudioCtx();
   const scheduleAt=SS.noteScheduleTime;
   const delayMs=Math.max(0,(scheduleAt-ctx.currentTime)*1000);
-
-  // Visual highlight — slightly before audio for display latency
-  setTimeout(()=>{
-    if(!SS.playing)return;
-    ssHighlight(idx);ssScrollToNote(idx);updateSSHUD(idx);
-  }, Math.max(0,delayMs-30));
-
-  // Sound at scheduled audio time
-  if(item.nota.type!=='rest' && state.student.soundOn){
-    setTimeout(()=>{ if(SS.playing) playNoteSound(item.nota); }, delayMs);
+  setTimeout(()=>{if(!SS.playing)return;ssHighlight(idx);ssScrollToNote(idx);updateSSHUD(idx);},Math.max(0,delayMs-30));
+  if(item.nota.type!=='rest'&&state.student.soundOn){
+    setTimeout(()=>{if(SS.playing)playNoteSound(item.nota);},delayMs);
   }
-
-  // Advance schedule time by this note's duration
   SS.noteScheduleTime+=item.dur_ms/1000;
-
-  // Schedule next note callback
-  SS.timer=setTimeout(()=>ssScheduleNotes(idx+1), delayMs+item.dur_ms);
+  SS.timer=setTimeout(()=>ssScheduleNotes(idx+1),delayMs+item.dur_ms);
 }
 function ssHighlight(idx){
   document.querySelectorAll('.ss-active').forEach(el=>el.classList.remove('ss-active'));
@@ -1525,54 +1384,19 @@ function updateSSHUD(idx){
   }
   document.getElementById('ss-compas-lbl').textContent='Compás '+(item.ci+1);
 }
-
 function toggleSSLoop(){
   SS.loopActive=!SS.loopActive;
   document.getElementById('ss-loop-btn').classList.toggle('on',SS.loopActive);
   ssUpdateLoopBar();
 }
 function toggleSSMetro(){
-  globalMetroOn=!globalMetroOn;
-  SS.metroOn=globalMetroOn;
+  globalMetroOn=!globalMetroOn;SS.metroOn=globalMetroOn;
   document.getElementById('ss-metro-btn').classList.toggle('on',globalMetroOn);
   const gb=document.getElementById('global-metro-btn');
-  if(gb) gb.classList.toggle('on',globalMetroOn);
-  if(SS.playing&&globalMetroOn) startGlobalMetro(getAudioCtx().currentTime+0.02);
+  if(gb)gb.classList.toggle('on',globalMetroOn);
+  if(SS.playing&&globalMetroOn)startGlobalMetro(getAudioCtx().currentTime+0.02);
   else stopGlobalMetro();
 }
-function ssStopMetro(){
-  if(SS.metroTimer){clearTimeout(SS.metroTimer);SS.metroTimer=null;}
-  SS.beatCount=0;SS.nextBeatTime=0;
-}
-function ssStartMetro(startAtAudioTime){
-  ssStopMetro();
-  const ctx=getAudioCtx();
-  if(ctx.state==='suspended')ctx.resume();
-  const beatSec=60/state.student.bpm;
-  // Sync metro to exact audio time when first note plays
-  SS.nextBeatTime=startAtAudioTime||ctx.currentTime;
-  SS.beatCount=0;
-  function scheduleBeat(){
-    if(!SS.playing||!SS.metroOn)return;
-    const ctx=getAudioCtx();
-    while(SS.nextBeatTime<ctx.currentTime+0.25){
-      const isDown=(SS.beatCount%getSSBeatsPerBar()===0);
-      const osc=ctx.createOscillator(),gain=ctx.createGain();
-      osc.type='square';
-      osc.frequency.value=isDown?1400:900;
-      gain.gain.setValueAtTime(isDown?0.14:0.07,SS.nextBeatTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001,SS.nextBeatTime+0.035);
-      osc.connect(gain);gain.connect(ctx.destination);
-      osc.start(SS.nextBeatTime);osc.stop(SS.nextBeatTime+0.04);
-      SS.nextBeatTime+=beatSec;
-      SS.beatCount++;
-    }
-    SS.metroTimer=setTimeout(scheduleBeat,100);
-  }
-  scheduleBeat();
-}
-function getSSBeatsPerBar(){const p=state.student.current;const[n]=(p?.compas||'4/4').split('/');return parseInt(n)||4;}
-
 function ssUpdateLoopBar(){
   const total=SS.notes.length;if(!total)return;
   const sp=SS.loopStart/total*100,ep=(SS.loopEnd+1)/total*100;
@@ -1583,8 +1407,6 @@ function ssUpdateLoopBar(){
   if(hs)hs.style.left=sp+'%';
   if(he)he.style.left=ep+'%';
 }
-
-// Loop bar drag
 function ssInitLoopBar(){
   const bar=document.getElementById('ss-loop-bar');if(!bar)return;
   function posToIdx(clientX){
@@ -1619,37 +1441,30 @@ function ssInitLoopBar(){
   document.addEventListener('touchend',()=>{SS.dragging=null;});
 }
 
-// ══════════════════════════════════════════════════
-//  PLAYBACK (modes 0-3)
-// ══════════════════════════════════════════════════
-// Global metronome — works in ALL modes
-let globalMetroOn = true;
-let globalMetroTimer = null;
-let globalMetroBeat = 0;
-let globalMetroNextTime = 0;
+let globalMetroOn=true;
+let globalMetroTimer=null;
+let globalMetroBeat=0;
+let globalMetroNextTime=0;
 
 function toggleGlobalMetro(){
   globalMetroOn=!globalMetroOn;
   const btn=document.getElementById('global-metro-btn');
-  if(btn) btn.classList.toggle('on',globalMetroOn);
-  // Sync with SS metro button too
+  if(btn)btn.classList.toggle('on',globalMetroOn);
   if(state.student.mode===4){
     SS.metroOn=globalMetroOn;
     const ssBtn=document.getElementById('ss-metro-btn');
-    if(ssBtn) ssBtn.classList.toggle('on',SS.metroOn);
+    if(ssBtn)ssBtn.classList.toggle('on',SS.metroOn);
   }
-  if(!globalMetroOn) stopGlobalMetro();
-  else if(state.student.playing||state.student.mode===4&&SS.playing) startGlobalMetro();
+  if(!globalMetroOn)stopGlobalMetro();
+  else if(state.student.playing||state.student.mode===4&&SS.playing)startGlobalMetro();
 }
-
 function stopGlobalMetro(){
   if(globalMetroTimer){clearTimeout(globalMetroTimer);globalMetroTimer=null;}
   globalMetroBeat=0;globalMetroNextTime=0;
 }
-
-function startGlobalMetro(startAtAudioTime, beatOffset){
+function startGlobalMetro(startAtAudioTime,beatOffset){
   stopGlobalMetro();
-  if(!globalMetroOn) return;
+  if(!globalMetroOn)return;
   const ctx=getAudioCtx();
   if(ctx.state==='suspended')ctx.resume();
   const beatSec=60/state.student.bpm;
@@ -1657,39 +1472,33 @@ function startGlobalMetro(startAtAudioTime, beatOffset){
   const[n]=(p?.compas||'4/4').split('/');
   const bpb=parseInt(n)||4;
   globalMetroNextTime=startAtAudioTime||ctx.currentTime+0.02;
-  globalMetroBeat=beatOffset||0; // start accent count from correct beat
+  globalMetroBeat=beatOffset||0;
   function schedule(){
     if(!globalMetroOn)return;
     const ctx=getAudioCtx();
     while(globalMetroNextTime<ctx.currentTime+0.25){
       const isDown=(globalMetroBeat%bpb===0);
       const osc=ctx.createOscillator(),gain=ctx.createGain();
-      osc.type='square';
-      osc.frequency.value=isDown?1400:900;
+      osc.type='square';osc.frequency.value=isDown?1400:900;
       gain.gain.setValueAtTime(isDown?0.14:0.07,globalMetroNextTime);
       gain.gain.exponentialRampToValueAtTime(0.0001,globalMetroNextTime+0.035);
       osc.connect(gain);gain.connect(ctx.destination);
       osc.start(globalMetroNextTime);osc.stop(globalMetroNextTime+0.04);
-      globalMetroNextTime+=beatSec;
-      globalMetroBeat++;
+      globalMetroNextTime+=beatSec;globalMetroBeat++;
     }
     globalMetroTimer=setTimeout(schedule,100);
   }
   schedule();
 }
-
 function updateBPM(val){
   state.student.bpm=parseInt(val);
   document.getElementById('bpm-display').textContent=val+' BPM';
-  // If metro is running, restart with new tempo
   if(globalMetroTimer){stopGlobalMetro();startGlobalMetro();}
 }
-// Viewer loop state
-// Click any note in modes 0/1/2/3 to start playback from that note
 function viewerNoteClick(ci,ni){
-  if(!VL.seq.length){ startPlayback(); return; }
+  if(!VL.seq.length){startPlayback();return;}
   const idx=VL.seq.findIndex(s=>s.ci===ci&&s.ni===ni);
-  if(idx>=0){ stopPlayback(); startPlayback(idx); }
+  if(idx>=0){stopPlayback();startPlayback(idx);}
   else startPlayback();
 }
 
@@ -1700,7 +1509,6 @@ function toggleViewerLoop(){
   document.getElementById('viewer-loop-btn').classList.toggle('on',VL.loopActive);
   document.getElementById('viewer-loop-region').style.opacity=VL.loopActive?'1':'0.3';
 }
-
 function initViewerLoopBar(){
   const bar=document.getElementById('viewer-progress-bar');if(!bar)return;
   function posToIdx(clientX){
@@ -1734,7 +1542,6 @@ function initViewerLoopBar(){
   },{passive:true});
   document.addEventListener('touchend',()=>{VL.dragging=null;});
 }
-
 function updateViewerLoopBar(){
   const total=VL.seq.length||1;
   const sp=VL.loopStart/total*100,ep=(VL.loopEnd+1)/total*100;
@@ -1745,9 +1552,7 @@ function updateViewerLoopBar(){
   if(hs)hs.style.left=sp+'%';
   if(he)he.style.left=ep+'%';
 }
-
 function togglePlayback(){state.student.playing?stopPlayback():startPlayback();}
-
 function buildVLSeq(){
   const p=state.student.current;
   if(!p||!p.compases){VL.seq=[];return;}
@@ -1764,28 +1569,20 @@ function buildVLSeq(){
   VL.loopEnd=VL.seq.length-1;
   updateViewerLoopBar();
 }
-
 function startPlayback(startIdx){
   const p=state.student.current;if(!p||!p.compases)return;
-  // Rebuild seq (updates dur_ms with current BPM)
   buildVLSeq();
   if(!VL.seq.length)return;
-
   state.student.playing=true;
   document.getElementById('play-btn').textContent='⏹';
-
+  showStopFab();
   const ctx=getAudioCtx();
   if(ctx.state==='suspended')ctx.resume();
   const audioStart=ctx.currentTime+0.05;
-
-  // Calculate which beat within the bar we're starting on
-  // so the metronome accent lands correctly
   const idx0=startIdx!=null?startIdx:(VL.loopStart||0);
   const compasStr=p.compas||'4/4';
-  const totalBeats=COMPAS_BEATS[compasStr]||16;
-  const [numStr]=compasStr.split('/');
+  const[numStr]=compasStr.split('/');
   const beatsPerBar=parseInt(numStr)||4;
-  // Count beat-slots used before startIdx in its compas
   const startItem=VL.seq[idx0];
   let beatOffset=0;
   if(startItem){
@@ -1797,19 +1594,14 @@ function startPlayback(startIdx){
           const f=FIGURES.find(f=>f.id===c.notas[k].fig)||FIGURES[2];
           const d=c.notas[k].dot&&f.dot_val;
           slots+=(d?f.dot_val:f.val);
-        } else if(c.notas[k]===null||c.notas[k]==='skip'){
-          // skip slots don't count as new notes
         }
       }
-      // beatOffset in terms of bar beats
       beatOffset=Math.round(slots/4)%beatsPerBar;
     }
   }
-  startGlobalMetro(audioStart, beatOffset);
-
+  startGlobalMetro(audioStart,beatOffset);
   let idx=idx0;
   VL.nextWallTime=performance.now()+50;
-
   function playNext(){
     if(!state.student.playing)return;
     const endIdx=VL.loopActive?VL.loopEnd:VL.seq.length-1;
@@ -1821,7 +1613,6 @@ function startPlayback(startIdx){
     state.student.playPos={ci:item.ci,ni:item.ni};
     highlightNote(item.ci,item.ni);
     playNoteSound(item.nota);
-    // Update progress
     const pct=Math.round((idx/VL.seq.length)*100);
     const fill=document.getElementById('viewer-progress-fill');
     if(fill){fill.style.width=pct+'%';fill.style.background=item.nota.type==='note'?(NOTE_COLORS[item.nota.key]||'var(--accent)'):'var(--accent)';}
@@ -1835,6 +1626,7 @@ function startPlayback(startIdx){
 function stopPlayback(){
   state.student.playing=false;clearTimeout(state.student.playTimer);state.student.playPos=null;
   stopGlobalMetro();
+  hideStopFab();
   const btn=document.getElementById('play-btn');if(btn&&state.student.mode!==4)btn.textContent='▶';
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
   document.querySelectorAll('.svn-active').forEach(el=>el.classList.remove('svn-active'));
@@ -1843,7 +1635,7 @@ function highlightNote(ci,ni){
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
   document.querySelectorAll('.svn-active').forEach(el=>el.classList.remove('svn-active'));
   const mode=state.student.mode;
-  if(mode===0||mode===1){
+  if(mode===1){
     const el=document.getElementById(`vn-${ci}-${ni}`);
     if(el){el.classList.add('active-note');el.scrollIntoView({behavior:'smooth',block:'nearest'});}
   }else{
@@ -1878,49 +1670,29 @@ function playNoteSound(nota){
   }catch(e){}
 }
 
-// ══════════════════════════════════════════════════
-//  UTILS
-// ══════════════════════════════════════════════════
 function escHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function formatDate(iso){if(!iso)return'';return new Date(iso).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'});}
 
-// ══════════════════════════════════════════════════
-//  BACKING TRACK
-// ══════════════════════════════════════════════════
-let backingAudio = null;
-let backingOn = false;
-
-function toggleBacking(){
-  backingOn ? stopBacking() : startBacking();
-}
-
+let backingAudio=null;
+let backingOn=false;
+function toggleBacking(){backingOn?stopBacking():startBacking();}
 function startBacking(){
-  const p = state.student.current;
-  if(!p || !p.audioUrl) return;
+  const p=state.student.current;
+  if(!p||!p.audioUrl)return;
   stopBacking();
-  backingAudio = new Audio(p.audioUrl);
-  backingAudio.loop = false;
-  backingAudio.volume = 0.85;
+  backingAudio=new Audio(p.audioUrl);
+  backingAudio.loop=false;backingAudio.volume=0.85;
   backingAudio.play().then(()=>{
-    backingOn = true;
-    const btn = document.getElementById('backing-btn');
-    if(btn){ btn.classList.add('on'); btn.textContent='⏹ Pista'; }
-    backingAudio.onended = stopBacking;
-  }).catch(e=>{
-    showToast('Error al cargar la pista de audio');
-    console.error(e);
-  });
+    backingOn=true;
+    const btn=document.getElementById('backing-btn');
+    if(btn){btn.classList.add('on');btn.textContent='⏹ Pista';}
+    backingAudio.onended=stopBacking;
+  }).catch(e=>{showToast('Error al cargar la pista de audio');console.error(e);});
 }
-
 function stopBacking(){
-  if(backingAudio){
-    backingAudio.pause();
-    backingAudio.currentTime = 0;
-    backingAudio = null;
-  }
-  backingOn = false;
-  const btn = document.getElementById('backing-btn');
-  if(btn){ btn.classList.remove('on'); btn.textContent='🎵 Pista'; }
+  if(backingAudio){backingAudio.pause();backingAudio.currentTime=0;backingAudio=null;}
+  backingOn=false;
+  const btn=document.getElementById('backing-btn');
+  if(btn){btn.classList.remove('on');btn.textContent='🎵 Pista';}
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
