@@ -833,12 +833,12 @@ async function loadStudentList(){
 }
 async function openPartitura(id){
   const p=await apiGet('/api/partituras/'+id);
-  state.student.current=p;state.student.mode=1;state.student.layout=1;
+  state.student.current=p;state.student.mode=1;state.student.layout=4;
   state.student.playing=false;state.student.playPos=null;
   document.getElementById('viewer-title').textContent=p.titulo||'Partitura';
   document.getElementById('bpm-slider').value=state.student.bpm;
   document.getElementById('bpm-display').textContent=state.student.bpm+' BPM';
-  [1,2,4,8].forEach(v=>{const b=document.getElementById('lay-btn-'+v);if(b)b.classList.toggle('active',v===1);});
+  [1,2,4,8].forEach(v=>{const b=document.getElementById('lay-btn-'+v);if(b)b.classList.toggle('active',v===4);});
   const backingBtn=document.getElementById('backing-btn');
   if(backingBtn){backingBtn.style.display=p.audioUrl?'':'none';backingBtn.classList.remove('on');}
   stopBacking();
@@ -1217,14 +1217,36 @@ function renderPartitura(container, compases, compasStr, mode, onNoteClick){
 //  OSMD — Motor de notación principal
 // ══════════════════════════════════════════════════
 let osmdInstance = null;
-let osmdSeqIdx = 0; // posición actual del cursor en la secuencia
+let osmdSeqIdx = 0;
+let osmdNotePositions = []; // [{x, y, svgEl}] para selección por click
 
 const NOTE_COLOR_MAP = {
   C:'#E53935', D:'#E64A19', E:'#F9A825', F:'#2E7D32',
   G:'#1565C0', A:'#6A1B9A', B:'#AD1457'
 };
+const NOTE_NAME_MAP = {
+  C:'Do', D:'Re', E:'Mi', F:'Fa', G:'Sol', A:'La', B:'Si'
+};
 
-async function renderOSMD(xmlContent, mode, container){
+// Limpia el XML de textos de MuseScore (nombres de nota como Words/Fingering)
+// para que no interfieran con OSMD
+function cleanXML(xmlStr){
+  try{
+    const parser=new DOMParser();
+    const doc=parser.parseFromString(xmlStr,'text/xml');
+    // Eliminar elementos <words> que contienen nombres de nota (Do, Re, Mi...)
+    const noteNames=['Do','Re','Mi','Fa','Sol','La','Si','C','D','E','F','G','A','B'];
+    doc.querySelectorAll('words').forEach(w=>{
+      const txt=(w.textContent||'').trim();
+      if(noteNames.includes(txt)) w.parentElement?.remove();
+    });
+    // Eliminar <fingering>
+    doc.querySelectorAll('fingering').forEach(f=>f.parentElement?.remove());
+    return new XMLSerializer().serializeToString(doc);
+  }catch(e){ return xmlStr; }
+}
+
+async function renderOSMD(xmlContent, mode, container, forSimplySax=false){
   container.innerHTML='';
   if(!xmlContent){
     container.innerHTML='<p style="color:var(--muted);padding:2rem;text-align:center">Esta partitura no tiene XML. Reimportala desde el editor.</p>';
@@ -1232,16 +1254,19 @@ async function renderOSMD(xmlContent, mode, container){
   }
 
   if(osmdInstance){try{osmdInstance.clear();}catch(e){} osmdInstance=null;}
+  osmdNotePositions=[];
+
+  const cleanedXML=cleanXML(xmlContent);
 
   const osmdDiv=document.createElement('div');
-  osmdDiv.style.cssText='width:100%;background:white;padding:8px 0;';
+  osmdDiv.style.cssText=`width:100%;background:white;padding:${forSimplySax?'4px 0':'8px 0'};`;
   container.appendChild(osmdDiv);
 
-  const measuresPerLine = state.student.layout<=2 ? state.student.layout : state.student.layout;
+  const layout=state.student.layout||4;
 
   try{
     const osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay(osmdDiv,{
-      autoResize: true,
+      autoResize: !forSimplySax,
       backend: 'svg',
       drawTitle: false,
       drawSubtitle: false,
@@ -1250,7 +1275,7 @@ async function renderOSMD(xmlContent, mode, container){
       drawCredits: false,
       drawPartNames: false,
       drawMeasureNumbers: true,
-      drawMeasureNumbersOnlyAtSystemStart: false,
+      drawMeasureNumbersOnlyAtSystemStart: true,
       newSystemFromXML: false,
       newPageFromXML: false,
       followCursor: true,
@@ -1259,77 +1284,158 @@ async function renderOSMD(xmlContent, mode, container){
       pageBackgroundColor: '#FFFFFF',
     });
 
-    await osmd.load(xmlContent);
+    await osmd.load(cleanedXML);
 
-    // Compases por línea — regla de engraving
-    osmd.EngravingRules.MaxInstructionsConstValue = measuresPerLine;
-    osmd.EngravingRules.MinimumDistanceBetweenSystems = 5.0;
-    osmd.EngravingRules.SystemLabelsAfterFirstSystem = false;
-
-    // Colores por nota — modo paralela
-    if(mode===2){
-      applyOSMDColors(osmd);
-    }
+    // Compases por línea — propiedad correcta de OSMD
+    osmd.EngravingRules.MinimumDistanceBetweenSystems=6;
+    osmd.EngravingRules.FixedMeasureWidth=false;
+    osmd.EngravingRules.MaxInstructionsConstValue=layout;
+    // Forzar número de compases por sistema
+    try{ osmd.EngravingRules.defaultMeasuresPerSystem=layout; }catch(e){}
 
     osmd.render();
     osmdInstance=osmd;
     osmdSeqIdx=0;
 
-    // Reset cursor al inicio
-    try{
-      osmd.cursor.reset();
-      osmd.cursor.show();
-    }catch(e){}
+    // Mostrar cursor al inicio
+    try{ osmd.cursor.reset(); osmd.cursor.show(); }catch(e){}
 
-    // Click en SVG para seleccionar punto de inicio
+    // Modo paralela — dibujar cajas de colores encima del SVG
+    if(mode===2) drawParalelaBoxes(osmd, osmdDiv);
+
+    // Construir posiciones de notas para click
+    buildNotePositions(osmd);
+
+    // Click para seleccionar punto de inicio
     osmdDiv.addEventListener('click', onOSMDClick);
 
   }catch(e){
     console.error('OSMD error:', e);
-    container.innerHTML='<p style="color:#c62828;padding:2rem;text-align:center">Error al renderizar la partitura. Comprueba que el XML es válido.</p>';
+    container.innerHTML='<p style="color:#c62828;padding:2rem;text-align:center">Error al renderizar la partitura.</p>';
   }
 }
 
-function onOSMDClick(e){
-  // Al hacer click en la partitura OSMD, mover el cursor a esa posición
-  if(!osmdInstance) return;
+// Dibuja cajas de color con nombre de nota encima del SVG de OSMD
+function drawParalelaBoxes(osmd, container){
   try{
-    const cursor=osmdInstance.cursor;
-    // OSMD no expone hit-test directo, así que estimamos por posición X en el SVG
-    const svg=osmdInstance.GraphicSheet?.MusicPages?.[0];
-    if(!svg) return;
-    // Paramos reproducción y dejamos al usuario elegir desde dónde
-    if(state.student.playing) stopPlayback();
-    // Avanzamos el cursor hasta aproximar la posición X del click
-    cursor.reset();
-    osmdSeqIdx=0;
-    showToast('Pulsa ▶ para empezar desde aquí');
-  }catch(err){}
-}
+    const svgEl=container.querySelector('svg');
+    if(!svgEl) return;
+    const svgRect=svgEl.getBoundingClientRect();
+    const containerRect=container.getBoundingClientRect();
 
-function applyOSMDColors(osmd){
-  try{
-    const sheet=osmd.Sheet;
-    sheet.SourceMeasures.forEach(measure=>{
-      measure.VerticalSourceStaffEntryContainers.forEach(vsec=>{
-        vsec.StaffEntries.forEach(entry=>{
-          entry.VoiceEntries.forEach(ve=>{
+    // Iterar cursor para obtener posiciones reales de cada nota
+    const cursor=osmd.cursor;
+    cursor.reset();
+    const NS='http://www.w3.org/2000/svg';
+
+    // Crear overlay SVG encima
+    const overlay=document.createElementNS(NS,'svg');
+    overlay.style.cssText=`position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;`;
+    overlay.setAttribute('viewBox', svgEl.getAttribute('viewBox')||`0 0 ${svgEl.clientWidth} ${svgEl.clientHeight}`);
+
+    while(!cursor.Iterator.EndReached){
+      try{
+        const entries=cursor.VoicesUnderCursor();
+        if(entries&&entries.length){
+          // Posición del cursor en SVG
+          const cursorEl=container.querySelector('.osmd-cursor-img, image[class*="cursor"]');
+          // Obtener notas actuales
+          const voiceEntries=cursor.Iterator.CurrentVisibleVoiceEntries();
+          voiceEntries.forEach(ve=>{
             ve.Notes.forEach(note=>{
-              if(note.Pitch){
-                // FundamentalNote es número en OSMD: C=0,D=1,E=2,F=3,G=4,A=5,B=6
-                const stepNames=['C','D','E','F','G','A','B'];
-                const step=stepNames[note.Pitch.FundamentalNote]||'C';
-                const color=NOTE_COLOR_MAP[step]||'#333333';
-                note.NoteheadColor=color;
-                note.StemColor=color;
-                note.NoteheadColorCurrentVoice=color;
+              if(!note.Pitch) return;
+              const stepNames=['C','D','E','F','G','A','B'];
+              const step=stepNames[note.Pitch.FundamentalNote]||'C';
+              const color=NOTE_COLOR_MAP[step]||'#333';
+              const name=NOTE_NAME_MAP[step]||step;
+              // Obtener posición gráfica
+              const gfxNote=note.NoteheadGlyph||note.graphicalNote;
+              if(gfxNote&&gfxNote.PositionAndShape){
+                const pos=gfxNote.PositionAndShape.AbsolutePosition;
+                if(pos){
+                  const x=pos.x*10; // OSMD usa unidades de 10px
+                  const y=pos.y*10-28;
+                  const bw=28,bh=20;
+                  const rect=document.createElementNS(NS,'rect');
+                  rect.setAttribute('x',x-bw/2);rect.setAttribute('y',y-bh);
+                  rect.setAttribute('width',bw);rect.setAttribute('height',bh);
+                  rect.setAttribute('rx','4');rect.setAttribute('fill',color);
+                  overlay.appendChild(rect);
+                  const txt=document.createElementNS(NS,'text');
+                  txt.setAttribute('x',x);txt.setAttribute('y',y-bh/2);
+                  txt.setAttribute('text-anchor','middle');txt.setAttribute('dominant-baseline','middle');
+                  txt.setAttribute('font-size','9');txt.setAttribute('font-weight','900');
+                  txt.setAttribute('font-family','Nunito,sans-serif');
+                  txt.setAttribute('fill','white');txt.textContent=name;
+                  overlay.appendChild(txt);
+                }
               }
             });
           });
-        });
+        }
+      }catch(err){}
+      cursor.next();
+    }
+    cursor.reset();cursor.show();
+
+    container.style.position='relative';
+    container.appendChild(overlay);
+  }catch(e){ console.warn('drawParalelaBoxes:', e); }
+}
+
+function buildNotePositions(osmd){
+  osmdNotePositions=[];
+  try{
+    const cursor=osmd.cursor;
+    cursor.reset();
+    let idx=0;
+    while(!cursor.Iterator.EndReached){
+      osmdNotePositions.push({
+        idx,
+        measureIndex: cursor.Iterator.CurrentMeasureIndex,
+        beat: cursor.Iterator.CurrentBeat?.RealValue||0,
       });
-    });
-  }catch(e){ console.warn('applyOSMDColors:', e); }
+      cursor.next();
+      idx++;
+    }
+    cursor.reset();cursor.show();
+  }catch(e){}
+}
+
+function onOSMDClick(e){
+  if(!osmdInstance||!osmdNotePositions.length) return;
+  if(state.student.playing) stopPlayback();
+  // Estimar posición en la secuencia por posición X del click relativa al ancho total
+  const rect=e.currentTarget.getBoundingClientRect();
+  const relX=(e.clientX-rect.left)/rect.width;
+  const relY=(e.clientY-rect.top)/rect.height;
+  const totalNotes=osmdNotePositions.length;
+  // Aproximar: scroll vertical + posición X dentro de la línea
+  // Estimamos qué nota corresponde
+  const estimatedIdx=Math.floor(relX*totalNotes + relY*totalNotes*0.1);
+  const clampedIdx=Math.max(0,Math.min(totalNotes-1,estimatedIdx));
+
+  // Avanzar cursor a esa posición
+  try{
+    const cursor=osmdInstance.cursor;
+    cursor.reset();
+    for(let i=0;i<clampedIdx;i++) cursor.next();
+    cursor.show();
+    osmdSeqIdx=clampedIdx;
+    // Sincronizar reproducción
+    const p=state.student.current;
+    if(p){
+      buildVLSeq();
+      // Aproximar nota en VL.seq por measureIndex
+      const targetMeasure=osmdNotePositions[clampedIdx]?.measureIndex||0;
+      const vlIdx=VL.seq.findIndex(s=>s.ci>=targetMeasure);
+      if(vlIdx>=0){
+        VL.loopStart=vlIdx;
+        updateViewerLoopBar();
+      }
+    }
+    showToast('Pulsa ▶ para empezar desde aquí');
+  }catch(err){ console.warn('onOSMDClick:', err); }
 }
 
 function osmdCursorNext(){
@@ -1339,12 +1445,12 @@ function osmdCursorNext(){
     if(!cursor.Iterator.EndReached){
       cursor.next();
       osmdSeqIdx++;
-      // Scroll al cursor
-      const cursorEl=document.querySelector('.osmd-cursor, [class*="cursor"]');
-      if(cursorEl) cursorEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+      // Scroll suave al cursor
+      const cursorImg=document.querySelector('.osmd-cursor-img, image[href*="cursor"], rect[fill*="blue"], .osmd-cursor');
+      if(cursorImg) cursorImg.scrollIntoView({behavior:'smooth',block:'nearest'});
     } else {
-      // Fin de partitura
       cursor.reset();
+      cursor.show();
       osmdSeqIdx=0;
     }
   }catch(e){}
@@ -1369,10 +1475,9 @@ function renderViewer(){
   const mode=state.student.mode;
   const compasStr=p.compas||'4/4';
   const numGroups=COMPAS_GROUPS[compasStr],bpg=COMPAS_BEATS[compasStr]/numGroups;
+  const layout=state.student.layout||4;
 
   if(mode===1){
-    // Colores + letras: cajas de colores con selector de layout
-    const layout=state.student.layout||1;
     let html='';
     if(layout===1){
       p.compases.forEach((c,ci)=>{
@@ -1410,7 +1515,7 @@ function renderViewer(){
   } else if(mode===2||mode===3){
     wrap.innerHTML='<p style="color:var(--muted);padding:1rem;text-align:center;font-size:0.85rem;">Cargando partitura...</p>';
     const xmlContent=p.xmlContent||'';
-    setTimeout(()=>{ renderOSMD(xmlContent, mode, wrap); }, 30);
+    setTimeout(()=>{ renderOSMD(xmlContent, mode, wrap, false); }, 30);
   }
 }
 
@@ -1519,40 +1624,7 @@ function ssInit(){
 }
 
 async function renderOSMDSimplySax(xmlContent, container){
-  container.innerHTML='';
-  if(osmdInstance){try{osmdInstance.clear();}catch(e){} osmdInstance=null;}
-
-  const osmdDiv=document.createElement('div');
-  osmdDiv.style.cssText='background:white;min-width:800px;';
-  container.appendChild(osmdDiv);
-
-  try{
-    const osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay(osmdDiv,{
-      autoResize: false,
-      backend: 'svg',
-      drawTitle: false,
-      drawSubtitle: false,
-      drawComposer: false,
-      drawCredits: false,
-      drawPartNames: false,
-      drawMeasureNumbers: true,
-      drawMeasureNumbersOnlyAtSystemStart: false,
-      followCursor: true,
-      disableCursor: false,
-      pageFormat: 'Endless',
-      renderSingleHorizontalStaffline: true, // línea horizontal para Simply Sax
-      pageBackgroundColor: '#FFFFFF',
-    });
-    await osmd.load(xmlContent);
-    osmd.render();
-    osmdInstance=osmd;
-    buildOSMDCursorNotes(osmd);
-  }catch(e){
-    console.error('OSMD Simply Sax error:', e);
-    // Fallback al SVG propio
-    const p=state.student.current;
-    if(p) ssRenderStaff(p);
-  }
+  await renderOSMD(xmlContent, 3, container, true);
 }
 
 function ssRenderStaff(p){
