@@ -1,6 +1,5 @@
 const express = require('express');
 const path = require('path');
-
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -30,25 +29,40 @@ async function sb(method, url, body){
 // GET todas
 app.get('/api/partituras', async (req, res) => {
   try{
-    const data = await sb('GET', API + '?select=id,titulo,compas,instrument,creada_en,compases,audio_url,bloque,orden&order=orden.asc,creada_en.desc');
+    const data = await sb('GET', API + '?select=id,titulo,compas,instrument,creada_en,compases,audio_url,bloque,orden,xml_content&order=orden.asc,creada_en.desc');
     res.json((data||[]).map(p=>({
-      id:p.id, titulo:p.titulo, compas:p.compas,
-      instrument:p.instrument, creadaEn:p.creada_en,
-      audioUrl:p.audio_url||'',
-      bloque:p.bloque||'General',
-      orden:p.orden||0,
+      id: p.id,
+      titulo: p.titulo,
+      compas: p.compas,
+      instrument: p.instrument,
+      creadaEn: p.creada_en,
+      audioUrl: p.audio_url||'',
+      bloque: p.bloque||'General',
+      orden: p.orden||0,
+      hasXml: !!p.xml_content,
       numCompases: p.compases ? p.compases.length : 0
     })));
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
 
-// GET una
+// GET una — devuelve todo incluyendo xml_content
 app.get('/api/partituras/:id', async (req, res) => {
   try{
     const data = await sb('GET', API + '?id=eq.'+req.params.id+'&select=*');
     if(!data||!data.length) return res.status(404).json({error:'No encontrada'});
     const p=data[0];
-    res.json({id:p.id,titulo:p.titulo,compas:p.compas,instrument:p.instrument,compases:p.compases,creadaEn:p.creada_en,audioUrl:p.audio_url||'',bloque:p.bloque||'General',orden:p.orden||0});
+    res.json({
+      id: p.id,
+      titulo: p.titulo,
+      compas: p.compas,
+      instrument: p.instrument,
+      compases: p.compases,
+      creadaEn: p.creada_en,
+      audioUrl: p.audio_url||'',
+      bloque: p.bloque||'General',
+      orden: p.orden||0,
+      xmlContent: p.xml_content||''
+    });
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
 
@@ -56,8 +70,14 @@ app.get('/api/partituras/:id', async (req, res) => {
 app.post('/api/partituras', async (req, res) => {
   try{
     const id = 'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-    const {titulo,compas,instrument,compases,audioUrl,bloque,orden} = req.body;
-    await sb('POST', API, {id,titulo,compas,instrument,compases,audio_url:audioUrl||'',bloque:bloque||'General',orden:orden||0});
+    const {titulo,compas,instrument,compases,audioUrl,bloque,orden,xmlContent} = req.body;
+    await sb('POST', API, {
+      id, titulo, compas, instrument, compases,
+      audio_url: audioUrl||'',
+      bloque: bloque||'General',
+      orden: orden||0,
+      xml_content: xmlContent||''
+    });
     res.json({id});
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
@@ -65,8 +85,15 @@ app.post('/api/partituras', async (req, res) => {
 // PUT actualizar
 app.put('/api/partituras/:id', async (req, res) => {
   try{
-    const {titulo,compas,instrument,compases,audioUrl,bloque,orden} = req.body;
-    await sb('PATCH', API+'?id=eq.'+req.params.id, {titulo,compas,instrument,compases,audio_url:audioUrl||'',bloque:bloque||'General',orden:orden||0,actualizada_en:new Date().toISOString()});
+    const {titulo,compas,instrument,compases,audioUrl,bloque,orden,xmlContent} = req.body;
+    await sb('PATCH', API+'?id=eq.'+req.params.id, {
+      titulo, compas, instrument, compases,
+      audio_url: audioUrl||'',
+      bloque: bloque||'General',
+      orden: orden||0,
+      xml_content: xmlContent||'',
+      actualizada_en: new Date().toISOString()
+    });
     res.json({ok:true});
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
@@ -78,35 +105,30 @@ app.delete('/api/partituras/:id', async (req, res) => {
     res.json({ok:true});
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
+
 // PROXY para backingtracks de Google Drive
 app.get('/api/audio/:fileId', async (req, res) => {
   try {
     const fileId = req.params.fileId;
     const driveUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-    
     const response = await fetch(driveUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0'
-      },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
       redirect: 'follow'
     });
-
     if (!response.ok) {
       return res.status(502).json({ error: 'No se pudo obtener el audio de Drive' });
     }
-
     const contentType = response.headers.get('content-type') || 'audio/mpeg';
     res.setHeader('Content-Type', contentType);
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'public, max-age=3600');
-
     const buffer = await response.arrayBuffer();
     res.send(Buffer.from(buffer));
-
   } catch (e) {
     console.error('Error proxy audio:', e);
     res.status(500).json({ error: e.message });
   }
 });
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => console.log('SaxoApp en puerto '+PORT));
