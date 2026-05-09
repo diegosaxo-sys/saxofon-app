@@ -1228,46 +1228,42 @@ const NOTE_NAME_MAP = {
   C:'Do', D:'Re', E:'Mi', F:'Fa', G:'Sol', A:'La', B:'Si'
 };
 
-// Limpia el XML de textos de MuseScore y saltos de sistema forzados
-function cleanXML(xmlStr){
+// Limpia el XML de saltos de sistema de MuseScore
+// mode===2 (paralela): deja los nombres de nota del XML
+// mode===3 (pentagrama): elimina también los nombres de nota
+function cleanXML(xmlStr, mode){
   try{
     const parser=new DOMParser();
     const doc=parser.parseFromString(xmlStr,'text/xml');
 
-    // Eliminar <print new-system="yes"> y <print new-page="yes">
-    // Estos fuerzan saltos que no tienen sentido en pantalla móvil
+    // Siempre: eliminar saltos de sistema y layout de página de MuseScore
     doc.querySelectorAll('print').forEach(p=>{
       if(p.getAttribute('new-system')==='yes'||p.getAttribute('new-page')==='yes'){
-        // Mantener el elemento print pero quitar los atributos de salto
         p.removeAttribute('new-system');
         p.removeAttribute('new-page');
-        // Si el print solo tenía esos atributos y ningún hijo útil, eliminarlo
         const hasUsefulChildren=p.querySelector('system-layout,page-layout,staff-layout,measure-layout');
         if(!hasUsefulChildren) p.parentElement?.removeChild(p);
       }
     });
-
-    // Eliminar system-layout y page-layout que fuerzan márgenes de MuseScore
     doc.querySelectorAll('system-layout, page-layout').forEach(el=>el.parentElement?.removeChild(el));
 
-    // Eliminar elementos <words> que contienen nombres de nota
-    const noteNames=['Do','Re','Mi','Fa','Sol','La','Si','C','D','E','F','G','A','B'];
-    doc.querySelectorAll('words').forEach(w=>{
-      const txt=(w.textContent||'').trim();
-      if(noteNames.includes(txt)){
-        // Eliminar el direction completo, no solo el words
-        const direction=w.closest('direction');
+    // Solo en modo pentagrama: eliminar nombres de nota
+    if(mode===3){
+      const noteNames=['Do','Re','Mi','Fa','Sol','La','Si','C','D','E','F','G','A','B'];
+      doc.querySelectorAll('words').forEach(w=>{
+        const txt=(w.textContent||'').trim();
+        if(noteNames.includes(txt)){
+          const direction=w.closest('direction');
+          if(direction) direction.parentElement?.removeChild(direction);
+          else w.parentElement?.removeChild(w);
+        }
+      });
+      doc.querySelectorAll('fingering').forEach(f=>{
+        const direction=f.closest('direction');
         if(direction) direction.parentElement?.removeChild(direction);
-        else w.parentElement?.removeChild(w);
-      }
-    });
-
-    // Eliminar <fingering>
-    doc.querySelectorAll('fingering').forEach(f=>{
-      const direction=f.closest('direction');
-      if(direction) direction.parentElement?.removeChild(direction);
-      else f.parentElement?.removeChild(f);
-    });
+        else f.parentElement?.removeChild(f);
+      });
+    }
 
     return new XMLSerializer().serializeToString(doc);
   }catch(e){
@@ -1286,7 +1282,7 @@ async function renderOSMD(xmlContent, mode, container, forSimplySax=false){
   if(osmdInstance){try{osmdInstance.clear();}catch(e){} osmdInstance=null;}
   osmdNotePositions=[];
 
-  const cleanedXML=cleanXML(xmlContent);
+  const cleanedXML=cleanXML(xmlContent, mode);
 
   const osmdDiv=document.createElement('div');
   osmdDiv.style.cssText=`width:100%;background:white;padding:${forSimplySax?'4px 0':'8px 0'};`;
