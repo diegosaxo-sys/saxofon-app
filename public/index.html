@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>SaxoApp — Partituras de Saxofón</title>
-<script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.9/build/opensheetmusicdisplay.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;900&family=Space+Mono:wght@400;700&display=swap');
 :root{
@@ -181,6 +181,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .vnote-alt{font-size:0.72rem;font-weight:900;opacity:0.85;}
 .vnote-dur{font-size:0.55rem;opacity:0.65;font-family:var(--mono);}
 .vnote-rest{background:var(--surface2);border:1.5px dashed var(--border);color:var(--muted);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;}
+
+/* OSMD — contenedor de pentagrama */
+.osmd-wrap{background:white;border-radius:var(--radius-sm);margin:4px 6px 8px;border:1px solid var(--border);padding:8px 4px;overflow:hidden;}
+.osmd-wrap svg{display:block;width:100%;}
+.osmd-compas-num{font-size:0.68rem;color:var(--muted);font-family:var(--mono);font-weight:700;padding:2px 8px 0;}
+/* Highlight de nota activa en OSMD */
+.osmd-note-active{fill:var(--accent)!important;stroke:var(--accent)!important;}
 
 /* STAFF */
 .staff-wrap{background:white;border-radius:var(--radius-sm);margin:4px 6px 8px;border:1px solid var(--border);display:block;overflow:visible;}
@@ -604,12 +611,12 @@ async function dragBloqueDrop(e, targetBloque){
 function confirmDelete(id,titulo){openModal('Eliminar partitura',`¿Eliminar "${titulo}"? No se puede deshacer.`,async()=>{await apiDel('/api/partituras/'+id);showToast('Partitura eliminada');loadTeacherList();});}
 
 function newPartitura(){
-  state.editor={id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],audioUrl:'',bloque:'General',orden:0,selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
+  state.editor={id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],audioUrl:'',bloque:'General',orden:0,xmlContent:'',selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
   renderEditorUI();addCompas();goTo('teacher-editor');
 }
 async function editPartitura(id){
   const p=await apiGet('/api/partituras/'+id);
-  state.editor={id:p.id,titulo:p.titulo||'',compas:p.compas||'4/4',instrument:p.instrument||'alto',compases:p.compases||[],audioUrl:p.audioUrl||'',bloque:p.bloque||'General',orden:p.orden||0,selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
+  state.editor={id:p.id,titulo:p.titulo||'',compas:p.compas||'4/4',instrument:p.instrument||'alto',compases:p.compases||[],audioUrl:p.audioUrl||'',bloque:p.bloque||'General',orden:p.orden||0,xmlContent:p.xmlContent||'',selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
   renderEditorUI();renderTimeline();goTo('teacher-editor');
 }
 function renderEditorUI(){
@@ -715,7 +722,7 @@ function deleteCompas(ci){state.editor.compases.splice(ci,1);renderTimeline();}
 async function savePartitura(){
   const titulo=document.getElementById('ed-titulo').value.trim();
   if(!titulo){showToast('Escribe un título para la partitura');return;}
-  const data={titulo,compas:state.editor.compas,instrument:document.getElementById('ed-instrument').value,compases:state.editor.compases,audioUrl:document.getElementById('ed-audio').value.trim(),bloque:document.getElementById('ed-bloque').value.trim()||'General',orden:state.editor.orden||0};
+  const data={titulo,compas:state.editor.compas,instrument:document.getElementById('ed-instrument').value,compases:state.editor.compases,audioUrl:document.getElementById('ed-audio').value.trim(),bloque:document.getElementById('ed-bloque').value.trim()||'General',orden:state.editor.orden||0,xmlContent:state.editor.xmlContent||''};
   try{
     if(state.editor.id){await apiPut('/api/partituras/'+state.editor.id,data);showToast('✓ Partitura actualizada');}
     else{const res=await apiPost('/api/partituras',data);state.editor.id=res.id;showToast('✓ Partitura guardada');}
@@ -725,7 +732,14 @@ async function savePartitura(){
 function importMusicXML(event){
   const file=event.target.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=e=>{try{parseMusicXML(new DOMParser().parseFromString(e.target.result,'text/xml'));}catch(err){showToast('Error al leer el archivo XML');}};
+  reader.onload=e=>{
+    try{
+      const xmlStr=e.target.result;
+      // Guardar XML original para OSMD
+      state.editor.xmlContent=xmlStr;
+      parseMusicXML(new DOMParser().parseFromString(xmlStr,'text/xml'));
+    }catch(err){showToast('Error al leer el archivo XML');}
+  };
   reader.readAsText(file);event.target.value='';
 }
 function durToFig(s){if(s>=16)return'redonda';if(s>=8)return'blanca';if(s>=4)return'negra';if(s>=2)return'corchea';return'semicorchea';}
@@ -1199,15 +1213,148 @@ function renderPartitura(container, compases, compasStr, mode, onNoteClick){
 }
 
 
+// ══════════════════════════════════════════════════
+//  OSMD — Motor de notación principal
+// ══════════════════════════════════════════════════
+let osmdInstance = null;
+let osmdCursorNotes = []; // lista plana de notas para sincronizar cursor
+
+async function renderOSMD(xmlContent, mode, container){
+  container.innerHTML='';
+  if(!xmlContent){
+    container.innerHTML='<p style="color:var(--muted);padding:2rem;text-align:center">Esta partitura no tiene XML. Reimportala desde el editor.</p>';
+    return;
+  }
+
+  // Destruir instancia anterior
+  if(osmdInstance){
+    try{ osmdInstance.clear(); }catch(e){}
+    osmdInstance=null;
+  }
+
+  const osmdDiv=document.createElement('div');
+  osmdDiv.style.cssText='width:100%;background:white;';
+  container.appendChild(osmdDiv);
+
+  try{
+    const osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay(osmdDiv,{
+      autoResize: true,
+      backend: 'svg',
+      drawTitle: true,
+      drawSubtitle: false,
+      drawComposer: false,
+      drawLyricist: false,
+      drawCredits: false,
+      drawPartNames: false,
+      drawMeasureNumbers: true,
+      drawMeasureNumbersOnlyAtSystemStart: true,
+      defaultColorNotehead: mode===2 ? '#1565C0' : '#000000',
+      defaultColorStem: '#333333',
+      defaultColorRest: '#555555',
+      defaultColorLabel: '#333333',
+      drawingParameters: 'default',
+      newSystemFromXML: false,
+      newPageFromXML: false,
+      followCursor: false,
+      disableCursor: false,
+      pageFormat: 'Endless',
+      pageBackgroundColor: '#FFFFFF',
+      renderSingleHorizontalStaffline: false,
+      spacingBetweenTextLines: 0,
+    });
+
+    await osmd.load(xmlContent);
+
+    // Aplicar colores por nota en modo paralela
+    if(mode===2){
+      applyOSMDColors(osmd);
+    }
+
+    osmd.render();
+    osmdInstance=osmd;
+
+    // Construir lista de notas para cursor de reproducción
+    buildOSMDCursorNotes(osmd);
+
+  }catch(e){
+    console.error('OSMD error:', e);
+    container.innerHTML='<p style="color:#c62828;padding:2rem;text-align:center">Error al renderizar la partitura. Comprueba que el XML es válido.</p>';
+  }
+}
+
+function applyOSMDColors(osmd){
+  // Colorear cabezas de nota según nombre de nota (Do=rojo, Re=naranja, etc.)
+  const NOTE_COLOR_MAP={C:'#E53935',D:'#E64A19',E:'#F9A825',F:'#2E7D32',G:'#1565C0',A:'#6A1B9A',B:'#AD1457'};
+  try{
+    const sheet=osmd.Sheet;
+    sheet.SourceMeasures.forEach(measure=>{
+      measure.VerticalSourceStaffEntryContainers.forEach(container=>{
+        container.StaffEntries.forEach(entry=>{
+          entry.VoiceEntries.forEach(ve=>{
+            ve.Notes.forEach(note=>{
+              if(note.Pitch){
+                const step=note.Pitch.FundamentalNote; // 'C','D',etc
+                const color=NOTE_COLOR_MAP[step]||'#333333';
+                note.NoteheadColor=color;
+                note.StemColor=color;
+              }
+            });
+          });
+        });
+      });
+    });
+  }catch(e){ console.warn('applyOSMDColors error:', e); }
+}
+
+function buildOSMDCursorNotes(osmd){
+  osmdCursorNotes=[];
+  try{
+    const cursor=osmd.cursor;
+    if(!cursor) return;
+    cursor.reset();
+    while(!cursor.Iterator.EndReached){
+      const entries=cursor.Iterator.CurrentVisibleVoiceEntries();
+      if(entries&&entries.length){
+        const entry=entries[0];
+        osmdCursorNotes.push({
+          measureIndex: cursor.Iterator.CurrentMeasureIndex,
+          beat: cursor.Iterator.CurrentBeat?.RealValue||0,
+          noteEl: null // se resuelve al highlight
+        });
+      }
+      cursor.next();
+    }
+    cursor.reset();
+    cursor.hide();
+  }catch(e){ console.warn('buildOSMDCursorNotes:', e); }
+}
+
+function highlightOSMDNote(seqIdx){
+  // Quitar highlights anteriores
+  document.querySelectorAll('.osmd-note-active').forEach(el=>el.classList.remove('osmd-note-active'));
+  if(!osmdInstance||seqIdx<0) return;
+  try{
+    const cursor=osmdInstance.cursor;
+    if(!cursor) return;
+    cursor.reset();
+    for(let i=0;i<seqIdx;i++) cursor.next();
+    cursor.show();
+  }catch(e){}
+}
+
 function renderViewer(){
   const p=state.student.current;
   const wrap=document.getElementById('viewer-wrap');
-  if(!p||!p.compases||!p.compases.length){wrap.innerHTML='<p style="color:var(--muted);padding:2rem;text-align:center">Esta partitura no tiene notas.</p>';return;}
+  if(!p||!p.compases||!p.compases.length){
+    wrap.innerHTML='<p style="color:var(--muted);padding:2rem;text-align:center">Esta partitura no tiene notas.</p>';
+    return;
+  }
   const mode=state.student.mode;
   const compasStr=p.compas||'4/4';
   const numGroups=COMPAS_GROUPS[compasStr],bpg=COMPAS_BEATS[compasStr]/numGroups;
 
   if(mode===1){
+    // Colores + letras: cajas de colores
     let html='';
     p.compases.forEach((c,ci)=>{
       html+=`<div class="viewer-compas"><div class="viewer-compas-header"><span>Compás ${ci+1}</span><span>${compasStr}</span></div><div class="viewer-cells">`;
@@ -1222,16 +1369,13 @@ function renderViewer(){
       html+=`</div></div>`;
     });
     wrap.innerHTML=html;
-  } else {
-    wrap.innerHTML='';
+  } else if(mode===2||mode===3){
+    // Pentagrama con OSMD
+    wrap.innerHTML='<p style="color:var(--muted);padding:1rem;text-align:center;font-size:0.85rem;">Cargando partitura...</p>';
+    const xmlContent=p.xmlContent||state.student.current.xmlContent||'';
     setTimeout(()=>{
-      renderPartitura(wrap, p.compases, compasStr, mode, (clickCi,clickNi)=>{
-        if(!VL.seq.length){startPlayback();return;}
-        const idx=VL.seq.findIndex(s=>s.ci===clickCi&&s.ni===clickNi);
-        if(idx>=0){stopPlayback();startPlayback(idx);}
-        else startPlayback();
-      });
-    },10);
+      renderOSMD(xmlContent, mode, wrap);
+    },30);
   }
 }
 
@@ -1323,12 +1467,57 @@ function ssInit(){
   SS.notes=ssFlatNotes();
   SS.activeIdx=-1;SS.playing=false;SS.loopStart=0;SS.loopEnd=SS.notes.length-1;
   SS.beatCount=0;
+
   const staffScroll=document.getElementById('ss-staff-scroll');
-  staffScroll.innerHTML='';
-  // Simply Sax usa el nuevo motor SVG horizontal (scroll)
-  ssRenderStaff(p);
+  staffScroll.innerHTML='<p style="color:#7a7a9a;padding:1rem;font-size:0.85rem;">Cargando partitura...</p>';
+
+  // Usar OSMD si hay XML, si no caer en el SVG propio
+  const xmlContent=p.xmlContent||'';
+  if(xmlContent){
+    renderOSMDSimplySax(xmlContent, staffScroll);
+  } else {
+    ssRenderStaff(p);
+  }
+
   updateSSHUD(-1);ssUpdateLoopBar();
   document.getElementById('play-btn').textContent='▶';
+}
+
+async function renderOSMDSimplySax(xmlContent, container){
+  container.innerHTML='';
+  if(osmdInstance){try{osmdInstance.clear();}catch(e){} osmdInstance=null;}
+
+  const osmdDiv=document.createElement('div');
+  osmdDiv.style.cssText='background:white;min-width:800px;';
+  container.appendChild(osmdDiv);
+
+  try{
+    const osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay(osmdDiv,{
+      autoResize: false,
+      backend: 'svg',
+      drawTitle: false,
+      drawSubtitle: false,
+      drawComposer: false,
+      drawCredits: false,
+      drawPartNames: false,
+      drawMeasureNumbers: true,
+      drawMeasureNumbersOnlyAtSystemStart: false,
+      followCursor: true,
+      disableCursor: false,
+      pageFormat: 'Endless',
+      renderSingleHorizontalStaffline: true, // línea horizontal para Simply Sax
+      pageBackgroundColor: '#FFFFFF',
+    });
+    await osmd.load(xmlContent);
+    osmd.render();
+    osmdInstance=osmd;
+    buildOSMDCursorNotes(osmd);
+  }catch(e){
+    console.error('OSMD Simply Sax error:', e);
+    // Fallback al SVG propio
+    const p=state.student.current;
+    if(p) ssRenderStaff(p);
+  }
 }
 
 function ssRenderStaff(p){
@@ -1809,18 +1998,31 @@ function stopPlayback(){
 }
 function highlightNote(ci,ni){
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
-  document.querySelectorAll('.svn-active').forEach(el=>el.classList.remove('svn-active'));
   const mode=state.student.mode;
   if(mode===1){
     const el=document.getElementById(`vn-${ci}-${ni}`);
     if(el){el.classList.add('active-note');el.scrollIntoView({behavior:'smooth',block:'nearest'});}
-  }else{
-    // Modos 2, 3 y 4: buscar el grupo SVG svn-ci-ni
-    const g=document.getElementById(`svn-${ci}-${ni}`);
-    if(g){
-      g.classList.add('svn-active');
-      // Scroll al elemento si está en el viewer
-      g.closest('div')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+  } else if(mode===2||mode===3){
+    // Avanzar cursor OSMD
+    if(osmdInstance&&osmdInstance.cursor){
+      try{
+        const cursor=osmdInstance.cursor;
+        if(!cursor.Iterator.EndReached){
+          cursor.next();
+          cursor.show();
+          // Scroll al cursor
+          const cursorEl=document.querySelector('.osmd-cursor');
+          if(cursorEl) cursorEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+        }
+      }catch(e){}
+    }
+  } else if(mode===4){
+    // Simply Sax — cursor OSMD horizontal
+    if(osmdInstance&&osmdInstance.cursor){
+      try{
+        const cursor=osmdInstance.cursor;
+        if(!cursor.Iterator.EndReached) cursor.next();
+      }catch(e){}
     }
   }
 }
