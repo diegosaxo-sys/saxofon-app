@@ -206,26 +206,51 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .viewer-loop-bar .ss-loop-bar-outer{flex:1;}
 .viewer-loop-bar .ss-btn{font-size:0.72rem;padding:0.25rem 0.55rem;}
 .ss-wrap{flex:1;display:flex;flex-direction:column;background:#0a0a16;overflow:hidden;}
-.ss-header{padding:0.5rem 1rem;background:#11112a;border-bottom:1px solid #2a2a4a;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;}
-.ss-note-lbl{font-size:1.5rem;font-weight:900;font-family:var(--font);min-width:80px;transition:color 0.1s;}
-.ss-compas-lbl{font-size:0.75rem;color:#7a7a9a;font-family:var(--mono);}
-.ss-controls{display:flex;gap:0.5rem;margin-left:auto;}
-.ss-btn{background:#1e1e3a;border:1.5px solid #3a3a5a;color:#9a9aba;border-radius:var(--radius-sm);padding:0.3rem 0.65rem;cursor:pointer;font-family:var(--font);font-size:0.75rem;font-weight:700;transition:all 0.2s;white-space:nowrap;}
+/* Frame fijo — siempre visible, no sube con el scroll */
+.ss-header{
+  flex-shrink:0;
+  padding:0.75rem 1rem;
+  background:#1a1a2e;
+  border-bottom:1px solid #2a2a4a;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:0.75rem;
+}
+.ss-note-center{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+}
+.ss-note-lbl{
+  font-size:2rem;
+  font-weight:900;
+  font-family:var(--font);
+  transition:color 0.1s, transform 0.1s;
+  text-align:center;
+}
+.ss-note-lbl.pulse{transform:scale(1.15);}
+.ss-compas-lbl{font-size:0.72rem;color:#7a7a9a;font-family:var(--mono);text-align:center;}
+.ss-controls{display:flex;gap:0.4rem;flex-direction:column;align-items:flex-end;}
+.ss-btn{background:#1e1e3a;border:1.5px solid #3a3a5a;color:#9a9aba;border-radius:var(--radius-sm);padding:0.3rem 0.65rem;cursor:pointer;font-family:var(--font);font-size:0.72rem;font-weight:700;transition:all 0.2s;white-space:nowrap;}
 .ss-btn:hover{border-color:var(--accent);color:white;}
 .ss-btn.on{background:rgba(91,79,207,0.25);border-color:var(--accent);color:var(--accent);}
 
 /* Loop bar */
-.ss-loop-wrap{padding:0.5rem 1rem;background:#0d0d22;border-bottom:1px solid #2a2a4a;display:flex;align-items:center;gap:0.75rem;}
+.ss-loop-wrap{flex-shrink:0;padding:0.4rem 1rem;background:#0d0d22;border-bottom:1px solid #2a2a4a;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;}
 .ss-loop-label{font-size:0.68rem;color:#7a7a9a;font-weight:700;font-family:var(--mono);white-space:nowrap;}
 .ss-loop-bar-outer{flex:1;height:20px;background:#1a1a32;border-radius:10px;position:relative;cursor:pointer;border:1px solid #2a2a4a;}
 .ss-progress-fill{height:100%;border-radius:10px;position:absolute;top:0;left:0;transition:width 0.15s,background 0.15s;opacity:0.4;}
 .ss-loop-region{position:absolute;top:0;height:100%;background:var(--accent);border-radius:10px;transition:opacity 0.2s;}
 .ss-handle{position:absolute;top:-3px;width:6px;height:26px;background:white;border-radius:3px;transform:translateX(-50%);cursor:ew-resize;box-shadow:0 0 6px rgba(0,0,0,0.5);}
 
-/* Staff scroll area */
-.ss-staff-outer{flex:1;position:relative;overflow:hidden;background:white;min-height:160px;}
+/* Staff scroll — ocupa el resto, el header queda fijo arriba */
+.ss-staff-outer{flex:1;position:relative;overflow:hidden;background:white;}
 .ss-cursor-line{position:absolute;top:0;bottom:0;width:3px;background:var(--accent);opacity:0.85;z-index:10;pointer-events:none;box-shadow:0 0 12px rgba(91,79,207,0.6);}
-.ss-staff-scroll{width:100%;height:100%;min-height:160px;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;}
+.ss-staff-scroll{width:100%;height:100%;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 .ss-staff-scroll svg{display:block;}
 
 /* FULL SCORE */
@@ -342,7 +367,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <span class="bpm-display" id="bpm-display">80 BPM</span>
     </div>
     <button class="sound-btn on" id="sound-toggle" onclick="toggleSound()">🔊</button>
-    <button class="sound-btn on" id="global-metro-btn" onclick="toggleGlobalMetro()">♩ Metro</button>
+    <button class="sound-btn" id="global-metro-btn" onclick="toggleGlobalMetro()">♩ Metro</button>
     <button class="sound-btn" id="backing-btn" onclick="toggleBacking()" style="display:none;">🎵 Pista</button>
   </div>
   <!-- Barra de inicio de compás -->
@@ -394,44 +419,36 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
   <!-- SIMPLY SAX -->
   <div class="ss-wrap" id="ss-wrap" style="display:none;">
+    <!-- Frame fijo — siempre visible aunque la partitura baje -->
     <div class="ss-header">
-      <div>
-        <div class="ss-note-lbl" id="ss-note-lbl" style="color:var(--muted)">—</div>
+      <div class="ss-controls">
+        <button class="ss-btn" id="ss-metro-btn" onclick="toggleSSMetro()">♩ Metro</button>
+        <button class="ss-btn" id="ss-loop-btn" onclick="toggleSSLoop()">⟳ Bucle</button>
+      </div>
+      <div class="ss-note-center">
+        <div class="ss-note-lbl" id="ss-note-lbl" style="color:#5a5a8a;">—</div>
         <div class="ss-compas-lbl" id="ss-compas-lbl">Toca ▶ para empezar</div>
       </div>
       <div class="ss-controls">
-        <button class="ss-btn on" id="ss-metro-btn" onclick="toggleSSMetro()">♩ Metro</button>
-        <button class="ss-btn" id="ss-loop-btn" onclick="toggleSSLoop()">⟳ Bucle</button>
+        <button class="ss-btn" onclick="ssMarkLoopStart()">⬅ Ini</button>
+        <button class="ss-btn" onclick="ssMarkLoopEnd()">Fin ➡</button>
+        <span id="ss-loop-range-lbl" style="font-size:0.65rem;color:#7a7a9a;font-family:var(--mono);text-align:center;min-width:50px;">— / —</span>
+        <button class="ss-btn" onclick="ssClearLoop()" style="opacity:0.6;font-size:0.65rem;">✕</button>
       </div>
     </div>
-    <!-- Bucle por compás -->
-    <div class="ss-loop-wrap" id="ss-loop-compas-bar">
-      <span class="ss-loop-label">Bucle compás:</span>
-      <button class="ss-btn" onclick="ssMarkLoopStart()">⬅ Inicio</button>
-      <span class="ss-loop-label" id="ss-loop-range-lbl" style="color:white;min-width:60px;text-align:center;">— / —</span>
-      <button class="ss-btn" onclick="ssMarkLoopEnd()">Fin ➡</button>
-      <button class="ss-btn" onclick="ssClearLoop()" style="opacity:0.6;">✕</button>
-    </div>
-    <div class="ss-staff-outer" style="position:relative;">
-      <div class="ss-cursor-line" id="ss-cursor" style="left:140px;"></div>
+    <!-- Partitura — se desplaza por debajo del frame fijo -->
+    <div class="ss-staff-outer">
       <div class="ss-staff-scroll" id="ss-staff-scroll"></div>
-      <!-- Globo flotante de nota activa -->
-      <div id="ss-note-bubble" style="display:none;position:fixed;z-index:99;pointer-events:none;transform:translate(-50%,-110%);transition:left 0.12s,top 0.12s;">
-        <div id="ss-note-bubble-inner" style="border-radius:12px;padding:6px 14px;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;color:white;box-shadow:0 4px 16px rgba(0,0,0,0.25);white-space:nowrap;text-align:center;">
-          <div id="ss-bubble-name" style="font-size:1.2rem;line-height:1.2;">—</div>
-          <div id="ss-bubble-info" style="font-size:0.65rem;opacity:0.85;font-weight:700;"></div>
-        </div>
-      </div>
     </div>
   </div>
-  </div>
-  <!-- Globo flotante para modos OSMD (Paralela) -->
+  <!-- Globo flotante para Paralela -->
   <div id="osmd-note-bubble" style="display:none;position:fixed;z-index:99;pointer-events:none;transform:translate(-50%,-110%);transition:left 0.12s,top 0.12s;">
     <div id="osmd-note-bubble-inner" style="border-radius:12px;padding:6px 14px;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;color:white;box-shadow:0 4px 16px rgba(0,0,0,0.25);white-space:nowrap;text-align:center;">
       <div id="osmd-bubble-name" style="font-size:1.2rem;line-height:1.2;">—</div>
       <div id="osmd-bubble-info" style="font-size:0.65rem;opacity:0.85;font-weight:700;"></div>
     </div>
   </div>
+</div>
 
 <!-- FULL SCORE -->
 <div class="fullscore-overlay" id="fullscore-overlay">
@@ -1906,10 +1923,15 @@ function showNoteBubble(bubbleId, innerId, nameId, infoId, color, name, info, an
   }
 }
 function hideBubbles(){
-  const ss=document.getElementById('ss-note-bubble');
   const osmd=document.getElementById('osmd-note-bubble');
-  if(ss) ss.style.display='none';
   if(osmd) osmd.style.display='none';
+  // Resetear frame de Simply Sax
+  const header=document.querySelector('.ss-header');
+  if(header) header.style.background='#1a1a2e';
+  const lbl=document.getElementById('ss-note-lbl');
+  if(lbl){lbl.textContent='—';lbl.style.color='#5a5a8a';}
+  const sub=document.getElementById('ss-compas-lbl');
+  if(sub) sub.textContent='Toca ▶ para empezar';
 }
 
 function ssHighlight(idx){
@@ -1917,26 +1939,7 @@ function ssHighlight(idx){
   if(idx>=0){
     const g=document.getElementById('ss-'+idx);
     if(g) g.classList.add('ss-active');
-
-    // Globo flotante
-    const item=SS.notes[idx];
-    if(item&&item.nota.type==='note'){
-      const name=NOTE_NAMES[NOTE_KEYS.indexOf(item.nota.key)];
-      const color=NOTE_COLORS[item.nota.key]||'#555';
-      const fig=FIGURES.find(f=>f.id===item.nota.fig)||FIGURES[2];
-      const oct=OCTAVAS[item.nota.oct]?.suffix||'';
-      const info=`${fig.name}${item.nota.dot?'.':''} · C${item.ci+1}${oct?' · '+oct:''}`;
-      // Intentar posicionar sobre la nota en el SVG
-      showNoteBubble('ss-note-bubble','ss-note-bubble-inner','ss-bubble-name','ss-bubble-info',
-        color, altSym(item.nota.alt)+name, info, g);
-    } else if(item&&item.nota.type==='rest'){
-      showNoteBubble('ss-note-bubble','ss-note-bubble-inner','ss-bubble-name','ss-bubble-info',
-        '#555', '𝄽 Silencio', 'C'+(item.ci+1), null);
-    }
-  } else {
-    hideBubbles();
   }
-
   const total=SS.notes.length,pct=total>0?Math.round(((idx+1)/total)*100):0;
   const bar=document.getElementById('ss-progress-fill');
   if(bar){bar.style.width=pct+'%';bar.style.background=idx>=0?(SS.notes[idx]?.color||'var(--accent)'):'var(--accent)';}
@@ -1947,22 +1950,37 @@ function ssScrollToNote(idx){
   if(scroll){const cursorX=140;scroll.scrollTo({left:Math.max(0,x-cursorX),behavior:'smooth'});}
 }
 function updateSSHUD(idx){
+  const lbl=document.getElementById('ss-note-lbl');
+  const sub=document.getElementById('ss-compas-lbl');
+  const header=document.querySelector('.ss-header');
   if(idx<0||!SS.notes[idx]){
-    document.getElementById('ss-note-lbl').textContent='—';
-    document.getElementById('ss-note-lbl').style.color='var(--muted)';
-    document.getElementById('ss-compas-lbl').textContent='Toca ▶ para empezar';
+    if(lbl){lbl.textContent='—';lbl.style.color='#5a5a8a';}
+    if(sub) sub.textContent='Toca ▶ para empezar';
+    if(header) header.style.background='#1a1a2e';
     return;
   }
   const item=SS.notes[idx],nota=item.nota;
   if(nota.type==='note'){
     const name=NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)];
-    document.getElementById('ss-note-lbl').textContent=altSym(nota.alt)+name+(OCTAVAS[nota.oct]?.suffix||'');
-    document.getElementById('ss-note-lbl').style.color=item.color;
-  }else{
-    document.getElementById('ss-note-lbl').textContent='𝄽';
-    document.getElementById('ss-note-lbl').style.color='var(--muted)';
+    const color=item.color||'white';
+    if(lbl){
+      lbl.textContent=altSym(nota.alt)+name+(OCTAVAS[nota.oct]?.suffix||'');
+      lbl.style.color=color;
+      // Pulso visual
+      lbl.classList.remove('pulse');
+      requestAnimationFrame(()=>lbl.classList.add('pulse'));
+      setTimeout(()=>lbl.classList.remove('pulse'),150);
+    }
+    // Teñir ligeramente el fondo del frame con el color de la nota
+    if(header) header.style.background=color+'22'; // muy transparente
+  } else {
+    if(lbl){lbl.textContent='𝄽';lbl.style.color='#5a5a8a';}
+    if(header) header.style.background='#1a1a2e';
   }
-  document.getElementById('ss-compas-lbl').textContent='Compás '+(item.ci+1);
+  if(sub) sub.textContent='Compás '+(item.ci+1);
+  // Actualizar compás actual en selector global
+  startMeasure=item.ci;
+  updateStartMeasureUI();
 }
 // ── Bucle por compás ──
 // SS.loopMeasureStart / SS.loopMeasureEnd: número de compás (ci)
@@ -2040,24 +2058,28 @@ function ssInitLoopBar(){
 //  METRÓNOMO — AudioContext puro, sin drift
 //  Usa lookahead scheduling para precisión absoluta
 // ══════════════════════════════════════════════════
-let globalMetroOn=true;
-let globalMetroRAF=null;       // requestAnimationFrame handle
-let globalMetroNextTime=0;     // próximo tick en AudioContext.currentTime
+let globalMetroOn=false;  // apagado por defecto — el usuario lo activa
+let globalMetroRAF=null;
+let globalMetroNextTime=0;
 let globalMetroBeat=0;
-const METRO_LOOKAHEAD=0.1;     // segundos por delante que programamos
-const METRO_SCHEDULE_INT=25;   // ms entre llamadas al scheduler
+const METRO_LOOKAHEAD=0.1;
+const METRO_SCHEDULE_INT=25;
 
 function toggleGlobalMetro(){
   globalMetroOn=!globalMetroOn;
   const btn=document.getElementById('global-metro-btn');
   if(btn)btn.classList.toggle('on',globalMetroOn);
-  if(state.student.mode===4){
-    SS.metroOn=globalMetroOn;
-    const ssBtn=document.getElementById('ss-metro-btn');
-    if(ssBtn)ssBtn.classList.toggle('on',SS.metroOn);
+  const ssBtn=document.getElementById('ss-metro-btn');
+  if(ssBtn)ssBtn.classList.toggle('on',globalMetroOn);
+  SS.metroOn=globalMetroOn;
+  if(!globalMetroOn){
+    stopGlobalMetro();
+  } else {
+    // Solo arranca si hay reproducción activa
+    if(state.student.playing||(state.student.mode===4&&SS.playing)){
+      startGlobalMetro();
+    }
   }
-  if(!globalMetroOn) stopGlobalMetro();
-  else if(state.student.playing||(state.student.mode===4&&SS.playing)) startGlobalMetro();
 }
 
 function stopGlobalMetro(){
