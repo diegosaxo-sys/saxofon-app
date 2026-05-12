@@ -344,7 +344,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <button class="sound-btn on" id="sound-toggle" onclick="toggleSound()">🔊</button>
     <button class="sound-btn on" id="global-metro-btn" onclick="toggleGlobalMetro()">♩ Metro</button>
     <button class="sound-btn" id="backing-btn" onclick="toggleBacking()" style="display:none;">🎵 Pista</button>
-    <button class="fullscore-btn" onclick="openFullScore()">📄 Partitura</button>
+  </div>
+  <!-- Barra de inicio de compás -->
+  <div class="practice-bar" id="compas-bar" style="padding:0.4rem 1rem;gap:0.5rem;flex-wrap:wrap;">
+    <span style="font-size:0.72rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Desde compás:</span>
+    <button class="layout-btn" onclick="changeStartMeasure(-1)">−</button>
+    <span id="start-measure-lbl" style="font-family:var(--mono);font-size:0.9rem;font-weight:700;min-width:28px;text-align:center;">1</span>
+    <button class="layout-btn" onclick="changeStartMeasure(1)">+</button>
+    <button class="sound-btn" onclick="goToStartMeasure()" style="margin-left:4px;">↵ Ir</button>
+    <div style="flex:1;"></div>
+    <button class="ss-btn" id="loop-mark-start-btn" onclick="markLoopStart()" style="background:#1e1e3a;border:1.5px solid #3a3a5a;color:#9a9aba;border-radius:var(--radius-sm);padding:0.3rem 0.65rem;cursor:pointer;font-size:0.75rem;font-weight:700;">⬅ Ini bucle</button>
+    <span id="loop-range-lbl" style="font-family:var(--mono);font-size:0.75rem;color:var(--muted);min-width:60px;text-align:center;">— / —</span>
+    <button class="ss-btn" id="loop-mark-end-btn" onclick="markLoopEnd()" style="background:#1e1e3a;border:1.5px solid #3a3a5a;color:#9a9aba;border-radius:var(--radius-sm);padding:0.3rem 0.65rem;cursor:pointer;font-size:0.75rem;font-weight:700;">Fin ➡</button>
+    <button onclick="clearLoop()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.9rem;padding:0 4px;">✕</button>
+    <button class="ss-btn" id="global-loop-btn" onclick="toggleGlobalLoop()" style="background:#1e1e3a;border:1.5px solid #3a3a5a;color:#9a9aba;border-radius:var(--radius-sm);padding:0.3rem 0.65rem;cursor:pointer;font-size:0.75rem;font-weight:700;">⟳ Bucle</button>
   </div>
   <div class="viewer-loop-bar" id="viewer-loop-bar">
     <span class="ss-loop-label">Inicio:</span>
@@ -847,6 +860,8 @@ async function openPartitura(id){
   const p=await apiGet('/api/partituras/'+id);
   state.student.current=p;state.student.mode=1;state.student.layout=4;
   state.student.playing=false;state.student.playPos=null;
+  startMeasure=0; loopMeasureStart=-1; loopMeasureEnd=-1; globalLoopActive=false;
+  updateStartMeasureUI(); updateLoopRangeUI();
   document.getElementById('viewer-title').textContent=p.titulo||'Partitura';
   document.getElementById('bpm-slider').value=state.student.bpm;
   document.getElementById('bpm-display').textContent=state.student.bpm+' BPM';
@@ -2021,10 +2036,16 @@ function ssInitLoopBar(){
   // Deprecated — bucle ahora es por compás con botones
 }
 
+// ══════════════════════════════════════════════════
+//  METRÓNOMO — AudioContext puro, sin drift
+//  Usa lookahead scheduling para precisión absoluta
+// ══════════════════════════════════════════════════
 let globalMetroOn=true;
-let globalMetroTimer=null;
+let globalMetroRAF=null;       // requestAnimationFrame handle
+let globalMetroNextTime=0;     // próximo tick en AudioContext.currentTime
 let globalMetroBeat=0;
-let globalMetroNextTime=0;
+const METRO_LOOKAHEAD=0.1;     // segundos por delante que programamos
+const METRO_SCHEDULE_INT=25;   // ms entre llamadas al scheduler
 
 function toggleGlobalMetro(){
   globalMetroOn=!globalMetroOn;
@@ -2035,46 +2056,187 @@ function toggleGlobalMetro(){
     const ssBtn=document.getElementById('ss-metro-btn');
     if(ssBtn)ssBtn.classList.toggle('on',SS.metroOn);
   }
-  if(!globalMetroOn)stopGlobalMetro();
-  else if(state.student.playing||state.student.mode===4&&SS.playing)startGlobalMetro();
+  if(!globalMetroOn) stopGlobalMetro();
+  else if(state.student.playing||(state.student.mode===4&&SS.playing)) startGlobalMetro();
 }
+
 function stopGlobalMetro(){
-  if(globalMetroTimer){clearTimeout(globalMetroTimer);globalMetroTimer=null;}
-  globalMetroBeat=0;globalMetroNextTime=0;
+  if(globalMetroRAF){ cancelAnimationFrame(globalMetroRAF); globalMetroRAF=null; }
+  globalMetroBeat=0; globalMetroNextTime=0;
 }
-function startGlobalMetro(startAtAudioTime,beatOffset){
+
+function startGlobalMetro(startAtAudioTime, beatOffset){
   stopGlobalMetro();
-  if(!globalMetroOn)return;
+  if(!globalMetroOn) return;
   const ctx=getAudioCtx();
-  if(ctx.state==='suspended')ctx.resume();
-  const beatSec=60/state.student.bpm;
+  if(ctx.state==='suspended') ctx.resume();
   const p=state.student.current;
   const[n]=(p?.compas||'4/4').split('/');
   const bpb=parseInt(n)||4;
-  globalMetroNextTime=startAtAudioTime||ctx.currentTime+0.02;
+  globalMetroNextTime=startAtAudioTime!=null?startAtAudioTime:ctx.currentTime+0.02;
   globalMetroBeat=beatOffset||0;
-  function schedule(){
-    if(!globalMetroOn)return;
+
+  function tick(){
     const ctx=getAudioCtx();
-    while(globalMetroNextTime<ctx.currentTime+0.25){
+    const beatSec=60/state.student.bpm; // lee BPM actual en cada tick — se adapta al cambio
+    while(globalMetroNextTime<ctx.currentTime+METRO_LOOKAHEAD){
       const isDown=(globalMetroBeat%bpb===0);
-      const osc=ctx.createOscillator(),gain=ctx.createGain();
-      osc.type='square';osc.frequency.value=isDown?1400:900;
-      gain.gain.setValueAtTime(isDown?0.14:0.07,globalMetroNextTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001,globalMetroNextTime+0.035);
-      osc.connect(gain);gain.connect(ctx.destination);
-      osc.start(globalMetroNextTime);osc.stop(globalMetroNextTime+0.04);
-      globalMetroNextTime+=beatSec;globalMetroBeat++;
+      const osc=ctx.createOscillator(), gain=ctx.createGain();
+      osc.type='square';
+      osc.frequency.value=isDown?1400:900;
+      gain.gain.setValueAtTime(isDown?0.14:0.07, globalMetroNextTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, globalMetroNextTime+0.035);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(globalMetroNextTime); osc.stop(globalMetroNextTime+0.04);
+      globalMetroNextTime+=beatSec;
+      globalMetroBeat++;
     }
-    globalMetroTimer=setTimeout(schedule,100);
+    globalMetroRAF=setTimeout(tick, METRO_SCHEDULE_INT);
   }
-  schedule();
+  tick();
 }
+
 function updateBPM(val){
   state.student.bpm=parseInt(val);
   document.getElementById('bpm-display').textContent=val+' BPM';
-  if(globalMetroTimer){stopGlobalMetro();startGlobalMetro();}
+  // Si el metrónomo está corriendo, NO lo reiniciamos — se adapta solo en el próximo tick
+  // Si la reproducción está activa, sí reiniciamos para resincronizar
+  if(state.student.playing||SS.playing){
+    stopGlobalMetro();
+    startGlobalMetro(); // arranca desde ahora, resincronizado con BPM nuevo
+  }
 }
+
+// ══════════════════════════════════════════════════
+//  SELECTOR DE COMPÁS DE INICIO + BUCLE GLOBAL
+// ══════════════════════════════════════════════════
+let startMeasure=0;       // índice 0-based del compás de inicio
+let loopMeasureStart=-1;  // -1 = sin bucle
+let loopMeasureEnd=-1;
+let globalLoopActive=false;
+
+function updateStartMeasureUI(){
+  const lbl=document.getElementById('start-measure-lbl');
+  if(lbl) lbl.textContent=startMeasure+1;
+}
+function updateLoopRangeUI(){
+  const lbl=document.getElementById('loop-range-lbl');
+  if(!lbl) return;
+  if(loopMeasureStart>=0&&loopMeasureEnd>=0){
+    lbl.textContent=`C${loopMeasureStart+1}→C${loopMeasureEnd+1}`;
+    lbl.style.color='var(--accent)';
+  } else {
+    lbl.textContent='— / —';
+    lbl.style.color='var(--muted)';
+  }
+}
+
+function changeStartMeasure(delta){
+  const p=state.student.current;
+  const total=p?.compases?.length||1;
+  startMeasure=Math.max(0,Math.min(total-1,startMeasure+delta));
+  updateStartMeasureUI();
+}
+
+function goToStartMeasure(){
+  const p=state.student.current;
+  if(!p) return;
+  stopPlayback(); ssStop();
+  // Mover cursor OSMD al compás correcto
+  if(osmdInstance){
+    try{
+      const cursor=osmdInstance.cursor;
+      cursor.reset();
+      osmdSeqIdx=0;
+      // Avanzar hasta el compás objetivo
+      while(!cursor.Iterator.EndReached&&cursor.Iterator.CurrentMeasureIndex<startMeasure){
+        cursor.next();
+        osmdSeqIdx++;
+      }
+      cursor.show();
+    }catch(e){}
+  }
+  // Sincronizar VL.seq al compás
+  buildVLSeq();
+  const idx=VL.seq.findIndex(s=>s.ci>=startMeasure);
+  if(idx>=0){
+    VL.loopStart=idx;
+    updateViewerLoopBar();
+  }
+  // Sincronizar SS.notes al compás
+  const ssIdx=SS.notes.findIndex(n=>n.ci>=startMeasure);
+  if(ssIdx>=0) SS.activeIdx=ssIdx;
+  showToast('Desde compás '+(startMeasure+1));
+}
+
+function markLoopStart(){
+  loopMeasureStart=startMeasure;
+  if(loopMeasureEnd<loopMeasureStart) loopMeasureEnd=loopMeasureStart;
+  globalLoopActive=true;
+  document.getElementById('global-loop-btn')?.classList.add('on');
+  syncLoopToMeasures();
+  updateLoopRangeUI();
+  showToast('Inicio bucle: C'+(loopMeasureStart+1));
+}
+function markLoopEnd(){
+  loopMeasureEnd=startMeasure;
+  if(loopMeasureStart<0) loopMeasureStart=0;
+  if(loopMeasureEnd<loopMeasureStart) loopMeasureStart=loopMeasureEnd;
+  globalLoopActive=true;
+  document.getElementById('global-loop-btn')?.classList.add('on');
+  syncLoopToMeasures();
+  updateLoopRangeUI();
+  showToast('Fin bucle: C'+(loopMeasureEnd+1));
+}
+function clearLoop(){
+  loopMeasureStart=-1; loopMeasureEnd=-1;
+  globalLoopActive=false;
+  VL.loopActive=false; SS.loopActive=false;
+  document.getElementById('global-loop-btn')?.classList.remove('on');
+  updateLoopRangeUI();
+  updateViewerLoopBar();
+  showToast('Bucle desactivado');
+}
+function toggleGlobalLoop(){
+  globalLoopActive=!globalLoopActive;
+  VL.loopActive=globalLoopActive;
+  SS.loopActive=globalLoopActive;
+  document.getElementById('global-loop-btn')?.classList.toggle('on',globalLoopActive);
+  if(globalLoopActive&&loopMeasureStart<0){
+    // Si no hay rango definido, usar compás actual como inicio
+    loopMeasureStart=startMeasure;
+    loopMeasureEnd=startMeasure;
+    syncLoopToMeasures();
+    updateLoopRangeUI();
+  }
+}
+function syncLoopToMeasures(){
+  // Sincronizar VL
+  const startIdx=VL.seq.findIndex(s=>s.ci>=loopMeasureStart);
+  const endIdx=VL.seq.reduce((acc,s,i)=>s.ci<=loopMeasureEnd?i:acc, startIdx>=0?startIdx:0);
+  VL.loopStart=startIdx>=0?startIdx:0;
+  VL.loopEnd=endIdx;
+  VL.loopActive=globalLoopActive;
+  // Sincronizar SS
+  const ssStart=SS.notes.findIndex(n=>n.ci>=loopMeasureStart);
+  const ssEnd=SS.notes.reduce((acc,n,i)=>n.ci<=loopMeasureEnd?i:acc, ssStart>=0?ssStart:0);
+  SS.loopStart=ssStart>=0?ssStart:0;
+  SS.loopEnd=ssEnd;
+  SS.loopActive=globalLoopActive;
+  updateViewerLoopBar();
+}
+
+// ── Barra espaciadora para play/stop en todos los modos ──
+document.addEventListener('keydown', e=>{
+  if(e.code==='Space'&&e.target.tagName!=='INPUT'&&e.target.tagName!=='TEXTAREA'){
+    e.preventDefault();
+    if(state.screen==='student-view'){
+      if(state.student.mode===4) toggleSSPlayback();
+      else togglePlayback();
+    }
+  }
+});
+
 function viewerNoteClick(ci,ni){
   if(!VL.seq.length){startPlayback();return;}
   const idx=VL.seq.findIndex(s=>s.ci===ci&&s.ni===ni);
@@ -2159,7 +2321,21 @@ function startPlayback(startIdx){
   const ctx=getAudioCtx();
   if(ctx.state==='suspended')ctx.resume();
   const audioStart=ctx.currentTime+0.05;
-  const idx0=startIdx!=null?startIdx:(VL.loopStart||0);
+
+  // Determinar índice de inicio — prioridad: parámetro > startMeasure > loopStart
+  let idx0;
+  if(startIdx!=null){
+    idx0=startIdx;
+  } else if(startMeasure>0){
+    const fromMeasure=VL.seq.findIndex(s=>s.ci>=startMeasure);
+    idx0=fromMeasure>=0?fromMeasure:0;
+  } else {
+    idx0=globalLoopActive?VL.loopStart:0;
+  }
+
+  // Sincronizar bucle global si está activo
+  if(globalLoopActive) syncLoopToMeasures();
+
   const compasStr=p.compas||'4/4';
   const[numStr]=compasStr.split('/');
   const beatsPerBar=parseInt(numStr)||4;
@@ -2179,18 +2355,27 @@ function startPlayback(startIdx){
       beatOffset=Math.round(slots/4)%beatsPerBar;
     }
   }
-  startGlobalMetro(audioStart,beatOffset);
+  startGlobalMetro(audioStart, beatOffset);
   let idx=idx0;
   VL.nextWallTime=performance.now()+50;
   function playNext(){
     if(!state.student.playing)return;
     const endIdx=VL.loopActive?VL.loopEnd:VL.seq.length-1;
     if(idx>endIdx){
-      if(VL.loopActive){idx=VL.loopStart;VL.nextWallTime=performance.now();}
+      if(VL.loopActive){
+        idx=VL.loopStart;
+        VL.nextWallTime=performance.now();
+        // Resincronizar metrónomo en el bucle
+        stopGlobalMetro();
+        startGlobalMetro(getAudioCtx().currentTime+0.02, 0);
+      }
       else{stopPlayback();return;}
     }
     const item=VL.seq[idx];
     state.student.playPos={ci:item.ci,ni:item.ni};
+    // Actualizar compás actual en el selector
+    startMeasure=item.ci;
+    updateStartMeasureUI();
     highlightNote(item.ci,item.ni);
     playNoteSound(item.nota);
     const pct=Math.round((idx/VL.seq.length)*100);
