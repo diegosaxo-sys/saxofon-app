@@ -19,6 +19,13 @@
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overscroll-behavior:none;}
 .screen{display:none;min-height:100vh;flex-direction:column;}
 .screen.active{display:flex;}
+/* Student view — overflow hidden para que los frames queden fijos */
+#screen-student-view{overflow:hidden;height:100vh;}
+#screen-student-view .viewer-wrap{flex:1;overflow-y:auto;padding:1rem;}
+.ss-wrap{flex:1;display:flex;flex-direction:column;background:#0a0a16;overflow:hidden;min-height:0;}
+.ss-staff-outer{flex:1;position:relative;overflow:hidden;background:white;min-height:0;}
+.ss-staff-scroll{width:100%;height:100%;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.ss-staff-scroll svg{display:block;}
 
 /* HOME */
 #screen-home{align-items:center;justify-content:center;gap:2rem;padding:2rem;background:radial-gradient(ellipse at 30% 30%,#EDE0C4 0%,var(--bg) 65%);}
@@ -209,31 +216,31 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 /* Frame fijo — siempre visible, no sube con el scroll */
 .ss-header{
   flex-shrink:0;
-  padding:0.75rem 1rem;
+  padding:1rem 1.5rem;
   background:#1a1a2e;
   border-bottom:1px solid #2a2a4a;
   display:flex;
   align-items:center;
-  justify-content:space-between;
-  gap:0.75rem;
+  justify-content:center;
+  transition:background 0.3s;
 }
 .ss-note-center{
-  flex:1;
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  gap:2px;
+  gap:4px;
 }
 .ss-note-lbl{
-  font-size:2rem;
+  font-size:2.5rem;
   font-weight:900;
   font-family:var(--font);
-  transition:color 0.1s, transform 0.1s;
+  transition:color 0.15s, transform 0.1s;
   text-align:center;
+  line-height:1;
 }
-.ss-note-lbl.pulse{transform:scale(1.15);}
-.ss-compas-lbl{font-size:0.72rem;color:#7a7a9a;font-family:var(--mono);text-align:center;}
+.ss-note-lbl.pulse{transform:scale(1.18);}
+.ss-compas-lbl{font-size:0.75rem;color:#7a7a9a;font-family:var(--mono);text-align:center;}
 .ss-controls{display:flex;gap:0.4rem;flex-direction:column;align-items:flex-end;}
 .ss-btn{background:#1e1e3a;border:1.5px solid #3a3a5a;color:#9a9aba;border-radius:var(--radius-sm);padding:0.3rem 0.65rem;cursor:pointer;font-family:var(--font);font-size:0.72rem;font-weight:700;transition:all 0.2s;white-space:nowrap;}
 .ss-btn:hover{border-color:var(--accent);color:white;}
@@ -419,33 +426,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
   <!-- SIMPLY SAX -->
   <div class="ss-wrap" id="ss-wrap" style="display:none;">
-    <!-- Frame fijo — siempre visible aunque la partitura baje -->
-    <div class="ss-header">
-      <div class="ss-controls">
-        <button class="ss-btn" id="ss-metro-btn" onclick="toggleSSMetro()">♩ Metro</button>
-        <button class="ss-btn" id="ss-loop-btn" onclick="toggleSSLoop()">⟳ Bucle</button>
-      </div>
+    <!-- Frame fijo — solo nota, siempre visible -->
+    <div class="ss-header" id="ss-header">
       <div class="ss-note-center">
         <div class="ss-note-lbl" id="ss-note-lbl" style="color:#5a5a8a;">—</div>
         <div class="ss-compas-lbl" id="ss-compas-lbl">Toca ▶ para empezar</div>
       </div>
-      <div class="ss-controls">
-        <button class="ss-btn" onclick="ssMarkLoopStart()">⬅ Ini</button>
-        <button class="ss-btn" onclick="ssMarkLoopEnd()">Fin ➡</button>
-        <span id="ss-loop-range-lbl" style="font-size:0.65rem;color:#7a7a9a;font-family:var(--mono);text-align:center;min-width:50px;">— / —</span>
-        <button class="ss-btn" onclick="ssClearLoop()" style="opacity:0.6;font-size:0.65rem;">✕</button>
-      </div>
     </div>
-    <!-- Partitura — se desplaza por debajo del frame fijo -->
+    <!-- Partitura — scroll interno, el frame no se mueve -->
     <div class="ss-staff-outer">
       <div class="ss-staff-scroll" id="ss-staff-scroll"></div>
-    </div>
-  </div>
-  <!-- Globo flotante para Paralela -->
-  <div id="osmd-note-bubble" style="display:none;position:fixed;z-index:99;pointer-events:none;transform:translate(-50%,-110%);transition:left 0.12s,top 0.12s;">
-    <div id="osmd-note-bubble-inner" style="border-radius:12px;padding:6px 14px;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;color:white;box-shadow:0 4px 16px rgba(0,0,0,0.25);white-space:nowrap;text-align:center;">
-      <div id="osmd-bubble-name" style="font-size:1.2rem;line-height:1.2;">—</div>
-      <div id="osmd-bubble-info" style="font-size:0.65rem;opacity:0.85;font-weight:700;"></div>
     </div>
   </div>
 </div>
@@ -1513,17 +1503,36 @@ function osmdCursorNext(){
   if(!osmdInstance) return;
   try{
     const cursor=osmdInstance.cursor;
-    if(!cursor.Iterator.EndReached){
-      cursor.next();
-      osmdSeqIdx++;
-      // Scroll suave al cursor
-      const cursorImg=document.querySelector('.osmd-cursor-img, image[href*="cursor"], rect[fill*="blue"], .osmd-cursor');
-      if(cursorImg) cursorImg.scrollIntoView({behavior:'smooth',block:'nearest'});
-    } else {
-      cursor.reset();
-      cursor.show();
-      osmdSeqIdx=0;
+    if(cursor.Iterator.EndReached){
+      cursor.reset(); cursor.show(); osmdSeqIdx=0; return;
     }
+    cursor.next(); osmdSeqIdx++;
+    cursor.show();
+    // Scroll automático en Simply Sax (horizontal) y Paralela (vertical)
+    setTimeout(()=>{
+      try{
+        if(state.student.mode===4){
+          // Scroll horizontal en Simply Sax
+          const scroll=document.getElementById('ss-staff-scroll');
+          if(scroll&&cursor.cursorElement){
+            const rect=cursor.cursorElement.getBoundingClientRect();
+            const scrollRect=scroll.getBoundingClientRect();
+            const targetLeft=scroll.scrollLeft+(rect.left-scrollRect.left)-100;
+            scroll.scrollTo({left:Math.max(0,targetLeft),behavior:'smooth'});
+          }
+        } else {
+          // Scroll vertical en Paralela
+          const wrap=document.getElementById('viewer-wrap');
+          if(wrap&&cursor.cursorElement){
+            const rect=cursor.cursorElement.getBoundingClientRect();
+            const wrapRect=wrap.getBoundingClientRect();
+            if(rect.bottom>wrapRect.bottom||rect.top<wrapRect.top){
+              wrap.scrollBy({top:rect.top-wrapRect.top-100,behavior:'smooth'});
+            }
+          }
+        }
+      }catch(e){}
+    },40);
   }catch(e){}
 }
 
@@ -1923,10 +1932,8 @@ function showNoteBubble(bubbleId, innerId, nameId, infoId, color, name, info, an
   }
 }
 function hideBubbles(){
-  const osmd=document.getElementById('osmd-note-bubble');
-  if(osmd) osmd.style.display='none';
   // Resetear frame de Simply Sax
-  const header=document.querySelector('.ss-header');
+  const header=document.getElementById('ss-header');
   if(header) header.style.background='#1a1a2e';
   const lbl=document.getElementById('ss-note-lbl');
   if(lbl){lbl.textContent='—';lbl.style.color='#5a5a8a';}
@@ -1952,7 +1959,7 @@ function ssScrollToNote(idx){
 function updateSSHUD(idx){
   const lbl=document.getElementById('ss-note-lbl');
   const sub=document.getElementById('ss-compas-lbl');
-  const header=document.querySelector('.ss-header');
+  const header=document.getElementById('ss-header');
   if(idx<0||!SS.notes[idx]){
     if(lbl){lbl.textContent='—';lbl.style.color='#5a5a8a';}
     if(sub) sub.textContent='Toca ▶ para empezar';
@@ -2058,75 +2065,76 @@ function ssInitLoopBar(){
 //  METRÓNOMO — AudioContext puro, sin drift
 //  Usa lookahead scheduling para precisión absoluta
 // ══════════════════════════════════════════════════
-let globalMetroOn=false;  // apagado por defecto — el usuario lo activa
-let globalMetroRAF=null;
-let globalMetroNextTime=0;
-let globalMetroBeat=0;
-const METRO_LOOKAHEAD=0.1;
-const METRO_SCHEDULE_INT=25;
+// ══════════════════════════════════════════════════
+//  METRÓNOMO — completamente independiente
+//  Solo arranca/para cuando el usuario pulsa el botón
+//  Lee BPM en cada tick — sin drift, sin desincronización
+// ══════════════════════════════════════════════════
+let metroOn=false;
+let metroTimer=null;
+let metroNextTime=0;
+let metroBeat=0;
+let metroCtx=null;
+
+function getMetroCtx(){
+  if(!metroCtx) metroCtx=new(window.AudioContext||window.webkitAudioContext)();
+  return metroCtx;
+}
 
 function toggleGlobalMetro(){
-  globalMetroOn=!globalMetroOn;
-  const btn=document.getElementById('global-metro-btn');
-  if(btn)btn.classList.toggle('on',globalMetroOn);
-  const ssBtn=document.getElementById('ss-metro-btn');
-  if(ssBtn)ssBtn.classList.toggle('on',globalMetroOn);
-  SS.metroOn=globalMetroOn;
-  if(!globalMetroOn){
-    stopGlobalMetro();
-  } else {
-    // Solo arranca si hay reproducción activa
-    if(state.student.playing||(state.student.mode===4&&SS.playing)){
-      startGlobalMetro();
-    }
-  }
+  metroOn=!metroOn;
+  document.getElementById('global-metro-btn')?.classList.toggle('on',metroOn);
+  if(metroOn) metroStart();
+  else metroStop();
 }
 
-function stopGlobalMetro(){
-  if(globalMetroRAF){ cancelAnimationFrame(globalMetroRAF); globalMetroRAF=null; }
-  globalMetroBeat=0; globalMetroNextTime=0;
+function metroStop(){
+  if(metroTimer){clearTimeout(metroTimer);metroTimer=null;}
+  metroBeat=0; metroNextTime=0;
 }
 
-function startGlobalMetro(startAtAudioTime, beatOffset){
-  stopGlobalMetro();
-  if(!globalMetroOn) return;
-  const ctx=getAudioCtx();
+function metroStart(){
+  metroStop();
+  if(!metroOn) return;
+  const ctx=getMetroCtx();
   if(ctx.state==='suspended') ctx.resume();
   const p=state.student.current;
-  const[n]=(p?.compas||'4/4').split('/');
-  const bpb=parseInt(n)||4;
-  globalMetroNextTime=startAtAudioTime!=null?startAtAudioTime:ctx.currentTime+0.02;
-  globalMetroBeat=beatOffset||0;
+  const bpb=parseInt((p?.compas||'4/4').split('/')[0])||4;
+  metroNextTime=ctx.currentTime+0.02;
+  metroBeat=0;
 
   function tick(){
-    const ctx=getAudioCtx();
-    const beatSec=60/state.student.bpm; // lee BPM actual en cada tick — se adapta al cambio
-    while(globalMetroNextTime<ctx.currentTime+METRO_LOOKAHEAD){
-      const isDown=(globalMetroBeat%bpb===0);
+    if(!metroOn) return;
+    const ctx=getMetroCtx();
+    const beatSec=60/state.student.bpm; // lee BPM actual — se adapta en tiempo real
+    while(metroNextTime < ctx.currentTime+0.15){
+      const isDown=(metroBeat%bpb===0);
       const osc=ctx.createOscillator(), gain=ctx.createGain();
-      osc.type='square';
-      osc.frequency.value=isDown?1400:900;
-      gain.gain.setValueAtTime(isDown?0.14:0.07, globalMetroNextTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, globalMetroNextTime+0.035);
+      osc.type='sine';
+      osc.frequency.value=isDown?1200:800;
+      gain.gain.setValueAtTime(0, metroNextTime);
+      gain.gain.linearRampToValueAtTime(isDown?0.4:0.25, metroNextTime+0.005);
+      gain.gain.exponentialRampToValueAtTime(0.001, metroNextTime+0.08);
       osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(globalMetroNextTime); osc.stop(globalMetroNextTime+0.04);
-      globalMetroNextTime+=beatSec;
-      globalMetroBeat++;
+      osc.start(metroNextTime); osc.stop(metroNextTime+0.09);
+      metroNextTime+=beatSec;
+      metroBeat++;
     }
-    globalMetroRAF=setTimeout(tick, METRO_SCHEDULE_INT);
+    metroTimer=setTimeout(tick, 30);
   }
   tick();
 }
 
+// startGlobalMetro y stopGlobalMetro ahora son no-ops — el metrónomo es independiente
+// Se mantienen para no romper llamadas existentes
+function startGlobalMetro(){}
+function stopGlobalMetro(){}
+
 function updateBPM(val){
   state.student.bpm=parseInt(val);
   document.getElementById('bpm-display').textContent=val+' BPM';
-  // Si el metrónomo está corriendo, NO lo reiniciamos — se adapta solo en el próximo tick
-  // Si la reproducción está activa, sí reiniciamos para resincronizar
-  if(state.student.playing||SS.playing){
-    stopGlobalMetro();
-    startGlobalMetro(); // arranca desde ahora, resincronizado con BPM nuevo
-  }
+  // El metrónomo lee BPM en cada tick — no hay que reiniciarlo
+  // La reproducción también usa state.student.bpm directamente
 }
 
 // ══════════════════════════════════════════════════
@@ -2427,21 +2435,6 @@ function highlightNote(ci,ni){
     if(el){el.classList.add('active-note');el.scrollIntoView({behavior:'smooth',block:'nearest'});}
   } else if(mode===2||mode===4){
     osmdCursorNext();
-    // Globo flotante para Paralela
-    if(mode===2){
-      const p=state.student.current;
-      if(p&&p.compases&&p.compases[ci]){
-        const nota=p.compases[ci].notas[ni];
-        if(nota&&nota!=='skip'&&nota.type==='note'){
-          const name=NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)];
-          const color=NOTE_COLORS[nota.key]||'#555';
-          const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-          const oct=OCTAVAS[nota.oct]?.suffix||'';
-          showNoteBubble('osmd-note-bubble','osmd-note-bubble-inner','osmd-bubble-name','osmd-bubble-info',
-            color, altSym(nota.alt)+name, `${fig.name}${nota.dot?'.':''} · C${ci+1}${oct?' · '+oct:''}`, null);
-        }
-      }
-    }
   }
 }
 function toggleSound(){
