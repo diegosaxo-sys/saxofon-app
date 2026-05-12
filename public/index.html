@@ -359,7 +359,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <div class="mode-selector">
     <button class="mode-btn active" id="mode-btn-1" onclick="setMode(1)">🔤 Col.+letras</button>
     <button class="mode-btn" id="mode-btn-2" onclick="setMode(2)">⚡ Paralela</button>
-    <button class="mode-btn" id="mode-btn-3" onclick="setMode(3)">🎵 Pentagrama</button>
     <button class="mode-btn" id="mode-btn-4" onclick="setMode(4)">🎷 Simply Sax</button>
   </div>
   <div class="layout-bar" id="layout-bar-wrap">
@@ -388,25 +387,38 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <div class="ss-compas-lbl" id="ss-compas-lbl">Toca ▶ para empezar</div>
       </div>
       <div class="ss-controls">
-        <button class="ss-btn on" id="ss-metro-btn" onclick="toggleSSMetro()">♩ Metrónomo</button>
+        <button class="ss-btn on" id="ss-metro-btn" onclick="toggleSSMetro()">♩ Metro</button>
         <button class="ss-btn" id="ss-loop-btn" onclick="toggleSSLoop()">⟳ Bucle</button>
       </div>
     </div>
-    <div class="ss-loop-wrap">
-      <span class="ss-loop-label">Inicio/Fin:</span>
-      <div class="ss-loop-bar-outer" id="ss-loop-bar">
-        <div class="ss-progress-fill" id="ss-progress-fill" style="width:0%"></div>
-        <div class="ss-loop-region" id="ss-loop-region" style="left:0%;width:100%"></div>
-        <div class="ss-handle" id="ss-handle-start" style="left:0%"></div>
-        <div class="ss-handle" id="ss-handle-end" style="left:100%"></div>
-      </div>
+    <!-- Bucle por compás -->
+    <div class="ss-loop-wrap" id="ss-loop-compas-bar">
+      <span class="ss-loop-label">Bucle compás:</span>
+      <button class="ss-btn" onclick="ssMarkLoopStart()">⬅ Inicio</button>
+      <span class="ss-loop-label" id="ss-loop-range-lbl" style="color:white;min-width:60px;text-align:center;">— / —</span>
+      <button class="ss-btn" onclick="ssMarkLoopEnd()">Fin ➡</button>
+      <button class="ss-btn" onclick="ssClearLoop()" style="opacity:0.6;">✕</button>
     </div>
-    <div class="ss-staff-outer">
+    <div class="ss-staff-outer" style="position:relative;">
       <div class="ss-cursor-line" id="ss-cursor" style="left:140px;"></div>
       <div class="ss-staff-scroll" id="ss-staff-scroll"></div>
+      <!-- Globo flotante de nota activa -->
+      <div id="ss-note-bubble" style="display:none;position:fixed;z-index:99;pointer-events:none;transform:translate(-50%,-110%);transition:left 0.12s,top 0.12s;">
+        <div id="ss-note-bubble-inner" style="border-radius:12px;padding:6px 14px;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;color:white;box-shadow:0 4px 16px rgba(0,0,0,0.25);white-space:nowrap;text-align:center;">
+          <div id="ss-bubble-name" style="font-size:1.2rem;line-height:1.2;">—</div>
+          <div id="ss-bubble-info" style="font-size:0.65rem;opacity:0.85;font-weight:700;"></div>
+        </div>
+      </div>
     </div>
   </div>
-</div>
+  </div>
+  <!-- Globo flotante para modos OSMD (Paralela) -->
+  <div id="osmd-note-bubble" style="display:none;position:fixed;z-index:99;pointer-events:none;transform:translate(-50%,-110%);transition:left 0.12s,top 0.12s;">
+    <div id="osmd-note-bubble-inner" style="border-radius:12px;padding:6px 14px;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;color:white;box-shadow:0 4px 16px rgba(0,0,0,0.25);white-space:nowrap;text-align:center;">
+      <div id="osmd-bubble-name" style="font-size:1.2rem;line-height:1.2;">—</div>
+      <div id="osmd-bubble-info" style="font-size:0.65rem;opacity:0.85;font-weight:700;"></div>
+    </div>
+  </div>
 
 <!-- FULL SCORE -->
 <div class="fullscore-overlay" id="fullscore-overlay">
@@ -848,14 +860,15 @@ async function openPartitura(id){
 
 function setMode(mode){
   stopPlayback();ssStop();
+  hideBubbles();
   state.student.mode=mode;
-  [1,2,3,4].forEach(i=>{const b=document.getElementById('mode-btn-'+i);if(b)b.classList.toggle('active',i===mode);});
+  [1,2,4].forEach(i=>{const b=document.getElementById('mode-btn-'+i);if(b)b.classList.toggle('active',i===mode);});
   const isSimply=(mode===4);
   document.getElementById('viewer-wrap').style.display=isSimply?'none':'';
   document.getElementById('ss-wrap').style.display=isSimply?'flex':'none';
   document.getElementById('layout-bar-wrap').style.display=isSimply?'none':'flex';
   document.getElementById('viewer-loop-bar').style.display=isSimply?'none':'flex';
-  document.getElementById('viewer-legend').style.display=(mode===3||mode===4)?'none':'flex';
+  document.getElementById('viewer-legend').style.display=(mode===2||mode===4)?'none':'flex';
   document.getElementById('play-btn').onclick=isSimply?toggleSSPlayback:togglePlayback;
   if(isSimply)ssInit();
   else renderViewer();
@@ -1632,6 +1645,7 @@ function ssInit(){
   const p=state.student.current;if(!p)return;
   SS.notes=ssFlatNotes();
   SS.activeIdx=-1;SS.playing=false;SS.loopStart=0;SS.loopEnd=SS.notes.length-1;
+  SS.loopMeasureStart=undefined;SS.loopMeasureEnd=undefined;
   SS.beatCount=0;
 
   const staffScroll=document.getElementById('ss-staff-scroll');
@@ -1786,6 +1800,7 @@ function ssStop(){
   SS.playing=false;clearTimeout(SS.timer);
   stopGlobalMetro();
   hideStopFab();
+  hideBubbles();
   document.getElementById('play-btn').textContent='▶';
   document.querySelectorAll('.ss-active').forEach(el=>el.classList.remove('ss-active'));
 }
@@ -1852,9 +1867,61 @@ function ssScheduleNotes(idx){
   SS.noteScheduleTime+=item.dur_ms/1000;
   SS.timer=setTimeout(()=>ssScheduleNotes(idx+1),delayMs+item.dur_ms);
 }
+// ── Globo flotante de nota activa ──
+function showNoteBubble(bubbleId, innerId, nameId, infoId, color, name, info, anchorEl){
+  const bubble=document.getElementById(bubbleId);
+  const inner=document.getElementById(innerId);
+  const nameEl=document.getElementById(nameId);
+  const infoEl=document.getElementById(infoId);
+  if(!bubble||!inner) return;
+  inner.style.background=color;
+  nameEl.textContent=name;
+  infoEl.textContent=info;
+  bubble.style.display='block';
+  // Posicionar sobre el elemento ancla si existe, si no centrar en pantalla
+  if(anchorEl){
+    const rect=anchorEl.getBoundingClientRect();
+    bubble.style.left=(rect.left+rect.width/2)+'px';
+    bubble.style.top=rect.top+'px';
+  } else {
+    // Posición fija centrada arriba visible siempre
+    bubble.style.left='50%';
+    bubble.style.top='120px';
+    bubble.style.transform='translateX(-50%)';
+  }
+}
+function hideBubbles(){
+  const ss=document.getElementById('ss-note-bubble');
+  const osmd=document.getElementById('osmd-note-bubble');
+  if(ss) ss.style.display='none';
+  if(osmd) osmd.style.display='none';
+}
+
 function ssHighlight(idx){
   document.querySelectorAll('.ss-active').forEach(el=>el.classList.remove('ss-active'));
-  if(idx>=0){const g=document.getElementById('ss-'+idx);if(g)g.classList.add('ss-active');}
+  if(idx>=0){
+    const g=document.getElementById('ss-'+idx);
+    if(g) g.classList.add('ss-active');
+
+    // Globo flotante
+    const item=SS.notes[idx];
+    if(item&&item.nota.type==='note'){
+      const name=NOTE_NAMES[NOTE_KEYS.indexOf(item.nota.key)];
+      const color=NOTE_COLORS[item.nota.key]||'#555';
+      const fig=FIGURES.find(f=>f.id===item.nota.fig)||FIGURES[2];
+      const oct=OCTAVAS[item.nota.oct]?.suffix||'';
+      const info=`${fig.name}${item.nota.dot?'.':''} · C${item.ci+1}${oct?' · '+oct:''}`;
+      // Intentar posicionar sobre la nota en el SVG
+      showNoteBubble('ss-note-bubble','ss-note-bubble-inner','ss-bubble-name','ss-bubble-info',
+        color, altSym(item.nota.alt)+name, info, g);
+    } else if(item&&item.nota.type==='rest'){
+      showNoteBubble('ss-note-bubble','ss-note-bubble-inner','ss-bubble-name','ss-bubble-info',
+        '#555', '𝄽 Silencio', 'C'+(item.ci+1), null);
+    }
+  } else {
+    hideBubbles();
+  }
+
   const total=SS.notes.length,pct=total>0?Math.round(((idx+1)/total)*100):0;
   const bar=document.getElementById('ss-progress-fill');
   if(bar){bar.style.width=pct+'%';bar.style.background=idx>=0?(SS.notes[idx]?.color||'var(--accent)'):'var(--accent)';}
@@ -1882,11 +1949,60 @@ function updateSSHUD(idx){
   }
   document.getElementById('ss-compas-lbl').textContent='Compás '+(item.ci+1);
 }
+// ── Bucle por compás ──
+// SS.loopMeasureStart / SS.loopMeasureEnd: número de compás (ci)
+function ssMarkLoopStart(){
+  if(SS.activeIdx<0) return;
+  const item=SS.notes[SS.activeIdx];
+  if(!item) return;
+  SS.loopMeasureStart=item.ci;
+  // Encontrar primer note de ese compás
+  SS.loopStart=SS.notes.findIndex(n=>n.ci>=SS.loopMeasureStart);
+  if(SS.loopMeasureEnd===undefined||SS.loopMeasureEnd<SS.loopMeasureStart) SS.loopMeasureEnd=SS.loopMeasureStart;
+  ssUpdateLoopLabel();
+  if(!SS.loopActive){SS.loopActive=true;document.getElementById('ss-loop-btn').classList.add('on');}
+  showToast('Inicio de bucle: compás '+(SS.loopMeasureStart+1));
+}
+function ssMarkLoopEnd(){
+  if(SS.activeIdx<0) return;
+  const item=SS.notes[SS.activeIdx];
+  if(!item) return;
+  SS.loopMeasureEnd=item.ci;
+  // Encontrar última nota de ese compás
+  const lastIdx=SS.notes.reduce((acc,n,i)=>n.ci<=SS.loopMeasureEnd?i:acc,-1);
+  SS.loopEnd=lastIdx>=0?lastIdx:SS.notes.length-1;
+  if(SS.loopMeasureStart===undefined||SS.loopMeasureStart>SS.loopMeasureEnd) SS.loopMeasureStart=SS.loopMeasureEnd;
+  ssUpdateLoopLabel();
+  if(!SS.loopActive){SS.loopActive=true;document.getElementById('ss-loop-btn').classList.add('on');}
+  showToast('Fin de bucle: compás '+(SS.loopMeasureEnd+1));
+}
+function ssClearLoop(){
+  SS.loopActive=false;
+  SS.loopMeasureStart=undefined;
+  SS.loopMeasureEnd=undefined;
+  SS.loopStart=0;
+  SS.loopEnd=SS.notes.length-1;
+  document.getElementById('ss-loop-btn').classList.remove('on');
+  ssUpdateLoopLabel();
+  showToast('Bucle desactivado');
+}
+function ssUpdateLoopLabel(){
+  const lbl=document.getElementById('ss-loop-range-lbl');
+  if(!lbl) return;
+  if(SS.loopMeasureStart!==undefined&&SS.loopMeasureEnd!==undefined){
+    lbl.textContent=`C${SS.loopMeasureStart+1} → C${SS.loopMeasureEnd+1}`;
+    lbl.style.color='var(--accent)';
+  } else {
+    lbl.textContent='— / —';
+    lbl.style.color='#7a7a9a';
+  }
+}
+
 function toggleSSLoop(){
   SS.loopActive=!SS.loopActive;
   document.getElementById('ss-loop-btn').classList.toggle('on',SS.loopActive);
-  ssUpdateLoopBar();
 }
+
 function toggleSSMetro(){
   globalMetroOn=!globalMetroOn;SS.metroOn=globalMetroOn;
   document.getElementById('ss-metro-btn').classList.toggle('on',globalMetroOn);
@@ -1895,48 +2011,14 @@ function toggleSSMetro(){
   if(SS.playing&&globalMetroOn)startGlobalMetro(getAudioCtx().currentTime+0.02);
   else stopGlobalMetro();
 }
+
 function ssUpdateLoopBar(){
-  const total=SS.notes.length;if(!total)return;
-  const sp=SS.loopStart/total*100,ep=(SS.loopEnd+1)/total*100;
-  const region=document.getElementById('ss-loop-region');
-  const hs=document.getElementById('ss-handle-start');
-  const he=document.getElementById('ss-handle-end');
-  if(region){region.style.left=sp+'%';region.style.width=(ep-sp)+'%';region.style.opacity=SS.loopActive?'1':'0.4';}
-  if(hs)hs.style.left=sp+'%';
-  if(he)he.style.left=ep+'%';
+  // Ya no usamos barra de scroll — el bucle es por compás
+  // Solo actualizamos el label
+  ssUpdateLoopLabel();
 }
 function ssInitLoopBar(){
-  const bar=document.getElementById('ss-loop-bar');if(!bar)return;
-  function posToIdx(clientX){
-    const rect=bar.getBoundingClientRect();
-    const pct=Math.max(0,Math.min(1,(clientX-rect.left)/rect.width));
-    return Math.round(pct*(SS.notes.length-1));
-  }
-  function getHandle(clientX){
-    const rect=bar.getBoundingClientRect();
-    const pct=(clientX-rect.left)/rect.width;
-    const total=SS.notes.length||1;
-    const sp=SS.loopStart/total,ep=(SS.loopEnd+1)/total;
-    return Math.abs(pct-sp)<Math.abs(pct-ep)?'start':'end';
-  }
-  bar.addEventListener('mousedown',e=>{SS.dragging=getHandle(e.clientX);});
-  document.addEventListener('mousemove',e=>{
-    if(!SS.dragging)return;
-    const idx=posToIdx(e.clientX);
-    if(SS.dragging==='start')SS.loopStart=Math.min(idx,SS.loopEnd);
-    else SS.loopEnd=Math.max(idx,SS.loopStart);
-    ssUpdateLoopBar();
-  });
-  document.addEventListener('mouseup',()=>{SS.dragging=null;});
-  bar.addEventListener('touchstart',e=>{SS.dragging=getHandle(e.touches[0].clientX);},{passive:true});
-  document.addEventListener('touchmove',e=>{
-    if(!SS.dragging)return;
-    const idx=posToIdx(e.touches[0].clientX);
-    if(SS.dragging==='start')SS.loopStart=Math.min(idx,SS.loopEnd);
-    else SS.loopEnd=Math.max(idx,SS.loopStart);
-    ssUpdateLoopBar();
-  },{passive:true});
-  document.addEventListener('touchend',()=>{SS.dragging=null;});
+  // Deprecated — bucle ahora es por compás con botones
 }
 
 let globalMetroOn=true;
@@ -2125,6 +2207,7 @@ function stopPlayback(){
   state.student.playing=false;clearTimeout(state.student.playTimer);state.student.playPos=null;
   stopGlobalMetro();
   hideStopFab();
+  hideBubbles();
   osmdCursorReset();
   const btn=document.getElementById('play-btn');if(btn&&state.student.mode!==4)btn.textContent='▶';
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
@@ -2135,8 +2218,23 @@ function highlightNote(ci,ni){
   if(mode===1){
     const el=document.getElementById(`vn-${ci}-${ni}`);
     if(el){el.classList.add('active-note');el.scrollIntoView({behavior:'smooth',block:'nearest'});}
-  } else if(mode===2||mode===3||mode===4){
+  } else if(mode===2||mode===4){
     osmdCursorNext();
+    // Globo flotante para Paralela
+    if(mode===2){
+      const p=state.student.current;
+      if(p&&p.compases&&p.compases[ci]){
+        const nota=p.compases[ci].notas[ni];
+        if(nota&&nota!=='skip'&&nota.type==='note'){
+          const name=NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)];
+          const color=NOTE_COLORS[nota.key]||'#555';
+          const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+          const oct=OCTAVAS[nota.oct]?.suffix||'';
+          showNoteBubble('osmd-note-bubble','osmd-note-bubble-inner','osmd-bubble-name','osmd-bubble-info',
+            color, altSym(nota.alt)+name, `${fig.name}${nota.dot?'.':''} · C${ci+1}${oct?' · '+oct:''}`, null);
+        }
+      }
+    }
   }
 }
 function toggleSound(){
