@@ -513,10 +513,15 @@ function goTo(screen){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+screen).classList.add('active');
   state.screen=screen;
+  if(screen!=='student-view'){
+    // Parar todo al salir de la vista del alumno
+    metroStop();
+    playbackAudioStart=null;
+  }
   if(screen==='teacher-list')loadTeacherList();
   if(screen==='student-list')loadStudentList();
 }
-function stopAll(){ stopPlayback(); ssStop(); stopBacking(); }
+function stopAll(){ stopPlayback(); ssStop(); stopBacking(); metroStop(); playbackAudioStart=null; }
 
 let toastTimer;
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2400);}
@@ -1839,9 +1844,10 @@ function ssRenderStaff(p){
 
 function ssStop(){
   SS.playing=false;clearTimeout(SS.timer);
-  stopGlobalMetro();
+  playbackAudioStart=null;
   hideStopFab();
   hideBubbles();
+  osmdCursorReset();
   document.getElementById('play-btn').textContent='▶';
   document.querySelectorAll('.ss-active').forEach(el=>el.classList.remove('ss-active'));
 }
@@ -2070,16 +2076,16 @@ function ssInitLoopBar(){
 //  Solo arranca/para cuando el usuario pulsa el botón
 //  Lee BPM en cada tick — sin drift, sin desincronización
 // ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════════
+//  RELOJ ÚNICO — AudioContext.currentTime para todo
+//  Metro, reproducción y cursor en el mismo reloj
+// ══════════════════════════════════════════════════
 let metroOn=false;
 let metroTimer=null;
 let metroNextTime=0;
 let metroBeat=0;
-let metroCtx=null;
-
-function getMetroCtx(){
-  if(!metroCtx) metroCtx=new(window.AudioContext||window.webkitAudioContext)();
-  return metroCtx;
-}
+let metroBeatsPerBar=4;
+let playbackAudioStart=null; // AudioContext.currentTime cuando arrancó la reproducción
 
 function toggleGlobalMetro(){
   metroOn=!metroOn;
@@ -2090,51 +2096,59 @@ function toggleGlobalMetro(){
 
 function metroStop(){
   if(metroTimer){clearTimeout(metroTimer);metroTimer=null;}
-  metroBeat=0; metroNextTime=0;
 }
 
 function metroStart(){
   metroStop();
   if(!metroOn) return;
-  const ctx=getMetroCtx();
+  const ctx=getAudioCtx();
   if(ctx.state==='suspended') ctx.resume();
   const p=state.student.current;
-  const bpb=parseInt((p?.compas||'4/4').split('/')[0])||4;
-  metroNextTime=ctx.currentTime+0.02;
-  metroBeat=0;
+  metroBeatsPerBar=parseInt((p?.compas||'4/4').split('/')[0])||4;
+  const beatSec=60/state.student.bpm;
 
-  function tick(){
-    if(!metroOn) return;
-    const ctx=getMetroCtx();
-    const beatSec=60/state.student.bpm; // lee BPM actual — se adapta en tiempo real
-    while(metroNextTime < ctx.currentTime+0.15){
-      const isDown=(metroBeat%bpb===0);
-      const osc=ctx.createOscillator(), gain=ctx.createGain();
-      osc.type='sine';
-      osc.frequency.value=isDown?1200:800;
-      gain.gain.setValueAtTime(0, metroNextTime);
-      gain.gain.linearRampToValueAtTime(isDown?0.4:0.25, metroNextTime+0.005);
-      gain.gain.exponentialRampToValueAtTime(0.001, metroNextTime+0.08);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(metroNextTime); osc.stop(metroNextTime+0.09);
-      metroNextTime+=beatSec;
-      metroBeat++;
-    }
-    metroTimer=setTimeout(tick, 30);
+  // Sincronizar con la reproducción si está activa
+  if(playbackAudioStart!==null){
+    const elapsed=ctx.currentTime-playbackAudioStart;
+    const beatsElapsed=elapsed/beatSec;
+    metroBeat=Math.ceil(beatsElapsed);
+    metroNextTime=playbackAudioStart+metroBeat*beatSec;
+    if(metroNextTime<=ctx.currentTime) metroNextTime=ctx.currentTime+0.01;
+  } else {
+    metroBeat=0;
+    metroNextTime=ctx.currentTime+0.02;
   }
-  tick();
+  metroTick();
 }
 
-// startGlobalMetro y stopGlobalMetro ahora son no-ops — el metrónomo es independiente
-// Se mantienen para no romper llamadas existentes
+function metroTick(){
+  if(!metroOn){metroTimer=null;return;}
+  const ctx=getAudioCtx();
+  const beatSec=60/state.student.bpm;
+  while(metroNextTime < ctx.currentTime+0.15){
+    const isDown=(metroBeat%metroBeatsPerBar===0);
+    const osc=ctx.createOscillator(), gain=ctx.createGain();
+    osc.type='sine';
+    osc.frequency.value=isDown?1200:800;
+    gain.gain.setValueAtTime(0, metroNextTime);
+    gain.gain.linearRampToValueAtTime(isDown?0.5:0.3, metroNextTime+0.004);
+    gain.gain.exponentialRampToValueAtTime(0.001, metroNextTime+0.07);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(metroNextTime); osc.stop(metroNextTime+0.08);
+    metroNextTime+=beatSec;
+    metroBeat++;
+  }
+  metroTimer=setTimeout(metroTick, 25);
+}
+
 function startGlobalMetro(){}
 function stopGlobalMetro(){}
 
 function updateBPM(val){
   state.student.bpm=parseInt(val);
   document.getElementById('bpm-display').textContent=val+' BPM';
-  // El metrónomo lee BPM en cada tick — no hay que reiniciarlo
-  // La reproducción también usa state.student.bpm directamente
+  // Reiniciar metrónomo sincronizado si está activo
+  if(metroOn){ metroStop(); metroStart(); }
 }
 
 // ══════════════════════════════════════════════════
@@ -2385,25 +2399,29 @@ function startPlayback(startIdx){
       beatOffset=Math.round(slots/4)%beatsPerBar;
     }
   }
-  startGlobalMetro(audioStart, beatOffset);
+  // Registrar inicio para sincronización del metrónomo
+  playbackAudioStart=audioStart;
+  // Reiniciar metrónomo si está activo para sincronizarlo
+  if(metroOn){ metroStop(); metroStart(); }
+
+  // Reproducción con AudioContext.currentTime — sin drift
   let idx=idx0;
-  VL.nextWallTime=performance.now()+50;
+  let nextAudioTime=audioStart; // tiempo AudioContext de la próxima nota
+
   function playNext(){
     if(!state.student.playing)return;
+    const ctx=getAudioCtx();
     const endIdx=VL.loopActive?VL.loopEnd:VL.seq.length-1;
     if(idx>endIdx){
       if(VL.loopActive){
         idx=VL.loopStart;
-        VL.nextWallTime=performance.now();
-        // Resincronizar metrónomo en el bucle
-        stopGlobalMetro();
-        startGlobalMetro(getAudioCtx().currentTime+0.02, 0);
-      }
-      else{stopPlayback();return;}
+        nextAudioTime=ctx.currentTime+0.02;
+        playbackAudioStart=nextAudioTime;
+        if(metroOn){ metroStop(); metroStart(); }
+      } else { stopPlayback(); return; }
     }
     const item=VL.seq[idx];
     state.student.playPos={ci:item.ci,ni:item.ni};
-    // Actualizar compás actual en el selector
     startMeasure=item.ci;
     updateStartMeasureUI();
     highlightNote(item.ci,item.ni);
@@ -2411,16 +2429,21 @@ function startPlayback(startIdx){
     const pct=Math.round((idx/VL.seq.length)*100);
     const fill=document.getElementById('viewer-progress-fill');
     if(fill){fill.style.width=pct+'%';fill.style.background=item.nota.type==='note'?(NOTE_COLORS[item.nota.key]||'var(--accent)'):'var(--accent)';}
-    VL.nextWallTime+=item.dur_ms;
+
+    // Calcular duración en segundos con BPM actual
+    const durSec=(item.nota.fig?((FIGURES.find(f=>f.id===item.nota.fig)||FIGURES[2]).val*(item.nota.dot?1.5:1)):4)*(60/state.student.bpm/4);
+    nextAudioTime+=durSec;
     idx++;
-    const drift=VL.nextWallTime-performance.now();
-    state.student.playTimer=setTimeout(playNext,Math.max(0,drift));
+
+    // Esperar hasta el tiempo correcto usando AudioContext
+    const delayMs=Math.max(0,(nextAudioTime-ctx.currentTime)*1000-20);
+    state.student.playTimer=setTimeout(playNext, delayMs);
   }
   playNext();
 }
 function stopPlayback(){
   state.student.playing=false;clearTimeout(state.student.playTimer);state.student.playPos=null;
-  stopGlobalMetro();
+  playbackAudioStart=null;
   hideStopFab();
   hideBubbles();
   osmdCursorReset();
