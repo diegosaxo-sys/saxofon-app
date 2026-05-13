@@ -873,6 +873,8 @@ async function openPartitura(id){
   state.student.current=p;state.student.mode=1;state.student.layout=4;
   state.student.playing=false;state.student.playPos=null;
   startMeasure=0; loopMeasureStart=-1; loopMeasureEnd=-1; globalLoopActive=false;
+  lastOsmdMeasure=-1; playbackAudioStart=null;
+  if(osmdInstance){try{osmdInstance.clear();}catch(e){} osmdInstance=null;}
   updateStartMeasureUI(); updateLoopRangeUI();
   document.getElementById('viewer-title').textContent=p.titulo||'Partitura';
   document.getElementById('bpm-slider').value=state.student.bpm;
@@ -1504,6 +1506,22 @@ function onOSMDClick(e){
   }catch(err){ console.warn('onOSMDClick:', err); }
 }
 
+function osmdCursorToMeasure(measureIdx){
+  // Mover cursor OSMD al compás indicado — más fiable que avanzar nota a nota
+  if(!osmdInstance) return;
+  try{
+    const cursor=osmdInstance.cursor;
+    cursor.reset();
+    osmdSeqIdx=0;
+    while(!cursor.Iterator.EndReached&&cursor.Iterator.CurrentMeasureIndex<measureIdx){
+      cursor.next();
+      osmdSeqIdx++;
+    }
+    cursor.show();
+    osmdScrollToCursor();
+  }catch(e){}
+}
+
 function osmdCursorNext(){
   if(!osmdInstance) return;
   try{
@@ -1513,32 +1531,35 @@ function osmdCursorNext(){
     }
     cursor.next(); osmdSeqIdx++;
     cursor.show();
-    // Scroll automático en Simply Sax (horizontal) y Paralela (vertical)
-    setTimeout(()=>{
-      try{
-        if(state.student.mode===4){
-          // Scroll horizontal en Simply Sax
-          const scroll=document.getElementById('ss-staff-scroll');
-          if(scroll&&cursor.cursorElement){
-            const rect=cursor.cursorElement.getBoundingClientRect();
-            const scrollRect=scroll.getBoundingClientRect();
-            const targetLeft=scroll.scrollLeft+(rect.left-scrollRect.left)-100;
-            scroll.scrollTo({left:Math.max(0,targetLeft),behavior:'smooth'});
-          }
-        } else {
-          // Scroll vertical en Paralela
-          const wrap=document.getElementById('viewer-wrap');
-          if(wrap&&cursor.cursorElement){
-            const rect=cursor.cursorElement.getBoundingClientRect();
-            const wrapRect=wrap.getBoundingClientRect();
-            if(rect.bottom>wrapRect.bottom||rect.top<wrapRect.top){
-              wrap.scrollBy({top:rect.top-wrapRect.top-100,behavior:'smooth'});
-            }
+    osmdScrollToCursor();
+  }catch(e){}
+}
+
+function osmdScrollToCursor(){
+  if(!osmdInstance) return;
+  setTimeout(()=>{
+    try{
+      const cursor=osmdInstance.cursor;
+      if(!cursor.cursorElement) return;
+      const rect=cursor.cursorElement.getBoundingClientRect();
+      if(state.student.mode===4){
+        const scroll=document.getElementById('ss-staff-scroll');
+        if(scroll){
+          const sr=scroll.getBoundingClientRect();
+          const targetLeft=scroll.scrollLeft+(rect.left-sr.left)-80;
+          scroll.scrollTo({left:Math.max(0,targetLeft),behavior:'smooth'});
+        }
+      } else {
+        const wrap=document.getElementById('viewer-wrap');
+        if(wrap){
+          const wr=wrap.getBoundingClientRect();
+          if(rect.bottom>wr.bottom-40||rect.top<wr.top+40){
+            wrap.scrollBy({top:rect.top-wr.top-80,behavior:'smooth'});
           }
         }
-      }catch(e){}
-    },40);
-  }catch(e){}
+      }
+    }catch(e){}
+  },30);
 }
 
 function osmdCursorReset(){
@@ -1547,6 +1568,7 @@ function osmdCursorReset(){
     osmdInstance.cursor.reset();
     osmdInstance.cursor.show();
     osmdSeqIdx=0;
+    lastOsmdMeasure=-1;
   }catch(e){}
 }
 
@@ -2107,13 +2129,19 @@ function metroStart(){
   metroBeatsPerBar=parseInt((p?.compas||'4/4').split('/')[0])||4;
   const beatSec=60/state.student.bpm;
 
-  // Sincronizar con la reproducción si está activa
+  // Sincronizar con la reproducción
+  // playbackAudioStart es el tiempo AudioContext del "beat 0" de la pieza completa
   if(playbackAudioStart!==null){
     const elapsed=ctx.currentTime-playbackAudioStart;
     const beatsElapsed=elapsed/beatSec;
-    metroBeat=Math.ceil(beatsElapsed);
+    // Encontrar el próximo beat entero
+    metroBeat=Math.floor(beatsElapsed)+1;
     metroNextTime=playbackAudioStart+metroBeat*beatSec;
-    if(metroNextTime<=ctx.currentTime) metroNextTime=ctx.currentTime+0.01;
+    // Si el próximo beat ya pasó (raro pero posible), ir al siguiente
+    while(metroNextTime<=ctx.currentTime+0.01) {
+      metroBeat++;
+      metroNextTime=playbackAudioStart+metroBeat*beatSec;
+    }
   } else {
     metroBeat=0;
     metroNextTime=ctx.currentTime+0.02;
@@ -2186,31 +2214,31 @@ function goToStartMeasure(){
   const p=state.student.current;
   if(!p) return;
   stopPlayback(); ssStop();
-  // Mover cursor OSMD al compás correcto
-  if(osmdInstance){
-    try{
-      const cursor=osmdInstance.cursor;
-      cursor.reset();
-      osmdSeqIdx=0;
-      // Avanzar hasta el compás objetivo
-      while(!cursor.Iterator.EndReached&&cursor.Iterator.CurrentMeasureIndex<startMeasure){
-        cursor.next();
-        osmdSeqIdx++;
-      }
-      cursor.show();
-    }catch(e){}
-  }
-  // Sincronizar VL.seq al compás
-  buildVLSeq();
-  const idx=VL.seq.findIndex(s=>s.ci>=startMeasure);
-  if(idx>=0){
-    VL.loopStart=idx;
-    updateViewerLoopBar();
-  }
-  // Sincronizar SS.notes al compás
-  const ssIdx=SS.notes.findIndex(n=>n.ci>=startMeasure);
-  if(ssIdx>=0) SS.activeIdx=ssIdx;
-  showToast('Desde compás '+(startMeasure+1));
+  // stopPlayback llama osmdCursorReset() — reposicionamos el cursor DESPUÉS
+  setTimeout(()=>{
+    if(osmdInstance){
+      try{
+        const cursor=osmdInstance.cursor;
+        cursor.reset();
+        osmdSeqIdx=0;
+        while(!cursor.Iterator.EndReached&&cursor.Iterator.CurrentMeasureIndex<startMeasure){
+          cursor.next();
+          osmdSeqIdx++;
+        }
+        cursor.show();
+        lastOsmdMeasure=startMeasure; // evitar que highlightNote lo resetee en la primera nota
+        osmdScrollToCursor();
+      }catch(e){}
+    }
+    // Sincronizar VL.seq al compás
+    buildVLSeq();
+    const idx=VL.seq.findIndex(s=>s.ci>=startMeasure);
+    if(idx>=0){ VL.loopStart=idx; updateViewerLoopBar(); }
+    // Sincronizar SS.notes al compás
+    const ssIdx=SS.notes.findIndex(n=>n.ci>=startMeasure);
+    if(ssIdx>=0) SS.activeIdx=ssIdx;
+    showToast('Desde compás '+(startMeasure+1));
+  }, 50);
 }
 
 function markLoopStart(){
@@ -2339,16 +2367,42 @@ function updateViewerLoopBar(){
   if(he)he.style.left=ep+'%';
 }
 function togglePlayback(){state.student.playing?stopPlayback():startPlayback();}
+function noteDurUnits(nota){
+  // Duración en unidades de semicorchea (independiente del BPM)
+  const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
+  return (nota.dot&&fig.dot_val)?fig.dot_val:fig.val;
+}
+
+function noteDurSec(nota){
+  // Duración en segundos al BPM actual
+  return noteDurUnits(nota)*(60/state.student.bpm/4);
+}
+
 function buildVLSeq(){
   const p=state.student.current;
   if(!p||!p.compases){VL.seq=[];return;}
   VL.seq=[];
+  let tieTargetIdx=null; // índice en VL.seq de la nota que acumula duración
+
   p.compases.forEach((c,ci)=>{
     (c.notas||[]).forEach((nota,ni)=>{
-      if(nota&&nota!=='skip'){
-        const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
-        const dot=nota.dot&&fig.dot_val,val=dot?fig.dot_val:fig.val;
-        VL.seq.push({ci,ni,nota,dur_ms:val*(60000/state.student.bpm/4)});
+      if(!nota||nota==='skip') return;
+      const units=noteDurUnits(nota);
+
+      if(tieTargetIdx!==null){
+        // Esta nota es destino de ligadura — acumular duración, no sonar separada
+        VL.seq[tieTargetIdx].tiedUnits=(VL.seq[tieTargetIdx].tiedUnits||0)+units;
+        if(nota.tied){
+          // Cadena continúa — tieTargetIdx se mantiene
+        } else {
+          tieTargetIdx=null;
+        }
+        return;
+      }
+
+      VL.seq.push({ci,ni,nota,baseUnits:units,tiedUnits:0});
+      if(nota.tied){
+        tieTargetIdx=VL.seq.length-1;
       }
     });
   });
@@ -2399,8 +2453,22 @@ function startPlayback(startIdx){
       beatOffset=Math.round(slots/4)%beatsPerBar;
     }
   }
-  // Registrar inicio para sincronización del metrónomo
-  playbackAudioStart=audioStart;
+  // Calcular beats totales desde el inicio de la pieza hasta idx0
+  // Esto permite que el metrónomo sincronice el acento correctamente
+  const compasStr2=p.compas||'4/4';
+  const beatsPerBar2=parseInt(compasStr2.split('/')[0])||4;
+  // Sumar duración en beats de todas las notas anteriores a idx0
+  let beatsBeforeStart=0;
+  for(let k=0;k<idx0;k++){
+    if(VL.seq[k]){
+      const units=(VL.seq[k].baseUnits||noteDurUnits(VL.seq[k].nota))+(VL.seq[k].tiedUnits||0);
+      beatsBeforeStart+=units/4; // unidades de semicorchea → beats (negras)
+    }
+  }
+  // playbackAudioStart es el tiempo AudioContext del "compás 1, beat 1" virtual
+  // = audioStart - (beatsBeforeStart * beatSec)
+  const beatSecNow=60/state.student.bpm;
+  playbackAudioStart=audioStart - beatsBeforeStart*beatSecNow;
   // Reiniciar metrónomo si está activo para sincronizarlo
   if(metroOn){ metroStop(); metroStart(); }
 
@@ -2430,8 +2498,9 @@ function startPlayback(startIdx){
     const fill=document.getElementById('viewer-progress-fill');
     if(fill){fill.style.width=pct+'%';fill.style.background=item.nota.type==='note'?(NOTE_COLORS[item.nota.key]||'var(--accent)'):'var(--accent)';}
 
-    // Calcular duración en segundos con BPM actual
-    const durSec=(item.nota.fig?((FIGURES.find(f=>f.id===item.nota.fig)||FIGURES[2]).val*(item.nota.dot?1.5:1)):4)*(60/state.student.bpm/4);
+    // Duración total = nota base + unidades acumuladas de ligaduras
+    const totalUnits=(item.baseUnits||noteDurUnits(item.nota))+(item.tiedUnits||0);
+    const durSec=totalUnits*(60/state.student.bpm/4);
     nextAudioTime+=durSec;
     idx++;
 
@@ -2446,10 +2515,13 @@ function stopPlayback(){
   playbackAudioStart=null;
   hideStopFab();
   hideBubbles();
-  osmdCursorReset();
+  // NO reseteamos el cursor OSMD aquí — se queda donde paró
+  // Se resetea solo al abrir nueva partitura o al llamar goToStartMeasure
   const btn=document.getElementById('play-btn');if(btn&&state.student.mode!==4)btn.textContent='▶';
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
 }
+let lastOsmdMeasure=-1;
+
 function highlightNote(ci,ni){
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
   const mode=state.student.mode;
@@ -2457,7 +2529,12 @@ function highlightNote(ci,ni){
     const el=document.getElementById(`vn-${ci}-${ni}`);
     if(el){el.classList.add('active-note');el.scrollIntoView({behavior:'smooth',block:'nearest'});}
   } else if(mode===2||mode===4){
-    osmdCursorNext();
+    if(ci!==lastOsmdMeasure){
+      osmdCursorToMeasure(ci);
+      lastOsmdMeasure=ci;
+    } else {
+      osmdCursorNext();
+    }
   }
 }
 function toggleSound(){
