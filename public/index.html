@@ -1643,7 +1643,7 @@ function renderViewer(){
 function renderImageScore(svgUrl, container){
   container.innerHTML='';
   // Construir URL de Drive si es solo un ID
-  const url=svgUrl.startsWith('http')?svgUrl:`/api/audio/${svgUrl}`;
+  const url=svgUrl.startsWith('http')?svgUrl:`/api/image/${svgUrl}`;
   const wrap=document.createElement('div');
   wrap.style.cssText='position:relative;width:100%;background:white;border-radius:8px;border:1px solid var(--border);overflow:hidden;';
 
@@ -1788,7 +1788,7 @@ function ssInit(){
   if(svgUrl){
     // Mostrar imagen SVG/PNG en Simply Sax
     staffScroll.innerHTML='';
-    const url=svgUrl.startsWith('http')?svgUrl:`/api/audio/${svgUrl}`;
+    const url=svgUrl.startsWith('http')?svgUrl:`/api/image/${svgUrl}`;
     const wrap=document.createElement('div');
     wrap.style.cssText='position:relative;width:100%;background:white;min-height:200px;';
     const img=document.createElement('img');
