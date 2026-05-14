@@ -133,5 +133,58 @@ app.get('/api/audio/:fileId', async (req, res) => {
   }
 });
 
+// PROXY para imágenes SVG/PNG de Google Drive
+// Drive a veces redirige a una página de confirmación — manejamos ambos casos
+app.get('/api/image/:fileId', async (req, res) => {
+  try {
+    const fileId = req.params.fileId;
+
+    // Intentar primero con export=download (descarga directa)
+    let driveUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+    let response = await fetch(driveUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Accept': 'image/svg+xml,image/png,image/*,*/*'
+      },
+      redirect: 'follow'
+    });
+
+    // Si Drive devuelve HTML (página de confirmación) en vez de imagen,
+    // intentar con la URL de thumbnail/export directa
+    const contentType = response.headers.get('content-type') || '';
+    if(contentType.includes('text/html')){
+      // Intentar con export=view
+      driveUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+      response = await fetch(driveUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          'Accept': 'image/svg+xml,image/png,image/*,*/*'
+        },
+        redirect: 'follow'
+      });
+    }
+
+    if (!response.ok) {
+      return res.status(502).json({ error: 'No se pudo obtener la imagen de Drive' });
+    }
+
+    const finalContentType = response.headers.get('content-type') || 'image/svg+xml';
+
+    // Si sigue siendo HTML, Drive no permite el acceso directo
+    if(finalContentType.includes('text/html')){
+      return res.status(403).json({ error: 'Drive requiere autenticación. Asegúrate de que el archivo es público (cualquiera con el enlace puede ver).' });
+    }
+
+    res.setHeader('Content-Type', finalContentType);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const buffer = await response.arrayBuffer();
+    res.send(Buffer.from(buffer));
+  } catch (e) {
+    console.error('Error proxy imagen:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => console.log('SaxoApp en puerto '+PORT));
