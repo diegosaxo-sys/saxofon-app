@@ -61,7 +61,8 @@ app.get('/api/partituras/:id', async (req, res) => {
       audioUrl: p.audio_url||'',
       bloque: p.bloque||'General',
       orden: p.orden||0,
-      xmlContent: p.xml_content||''
+      xmlContent: p.xml_content||'',
+      svgUrl: p.svg_url||''
     });
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
@@ -70,13 +71,14 @@ app.get('/api/partituras/:id', async (req, res) => {
 app.post('/api/partituras', async (req, res) => {
   try{
     const id = 'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-    const {titulo,compas,instrument,compases,audioUrl,bloque,orden,xmlContent} = req.body;
+    const {titulo,compas,instrument,compases,audioUrl,bloque,orden,xmlContent,svgUrl} = req.body;
     await sb('POST', API, {
       id, titulo, compas, instrument, compases,
       audio_url: audioUrl||'',
       bloque: bloque||'General',
       orden: orden||0,
-      xml_content: xmlContent||''
+      xml_content: xmlContent||'',
+      svg_url: svgUrl||''
     });
     res.json({id});
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
@@ -85,13 +87,14 @@ app.post('/api/partituras', async (req, res) => {
 // PUT actualizar
 app.put('/api/partituras/:id', async (req, res) => {
   try{
-    const {titulo,compas,instrument,compases,audioUrl,bloque,orden,xmlContent} = req.body;
+    const {titulo,compas,instrument,compases,audioUrl,bloque,orden,xmlContent,svgUrl} = req.body;
     await sb('PATCH', API+'?id=eq.'+req.params.id, {
       titulo, compas, instrument, compases,
       audio_url: audioUrl||'',
       bloque: bloque||'General',
       orden: orden||0,
       xml_content: xmlContent||'',
+      svg_url: svgUrl||'',
       actualizada_en: new Date().toISOString()
     });
     res.json({ok:true});
