@@ -328,6 +328,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <input type="text" id="ed-audio" placeholder="🎵 URL del acompañamiento (opcional)..." style="flex:2;min-width:200px;">
     <input type="text" id="ed-bloque" placeholder="📁 Bloque (ej: Canciones, Ejercicios...)" style="flex:1;min-width:140px;">
     <label class="import-btn">📄 Importar XML<input type="file" id="xml-file-input" accept=".xml,.musicxml" onchange="importMusicXML(event)"></label>
+    <input type="text" id="ed-svg-url" placeholder="🖼️ ID Drive imagen SVG/PNG (opcional)" style="flex:2;min-width:200px;">
   </div>
   <div class="legend-bar">
     <span class="legend-item"><span class="legend-dot" style="background:var(--do)"></span>Do</span>
@@ -648,12 +649,12 @@ async function dragBloqueDrop(e, targetBloque){
 function confirmDelete(id,titulo){openModal('Eliminar partitura',`¿Eliminar "${titulo}"? No se puede deshacer.`,async()=>{await apiDel('/api/partituras/'+id);showToast('Partitura eliminada');loadTeacherList();});}
 
 function newPartitura(){
-  state.editor={id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],audioUrl:'',bloque:'General',orden:0,xmlContent:'',selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
+  state.editor={id:null,titulo:'',compas:'4/4',instrument:'alto',compases:[],audioUrl:'',bloque:'General',orden:0,xmlContent:'',svgUrl:'',selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
   renderEditorUI();addCompas();goTo('teacher-editor');
 }
 async function editPartitura(id){
   const p=await apiGet('/api/partituras/'+id);
-  state.editor={id:p.id,titulo:p.titulo||'',compas:p.compas||'4/4',instrument:p.instrument||'alto',compases:p.compases||[],audioUrl:p.audioUrl||'',bloque:p.bloque||'General',orden:p.orden||0,xmlContent:p.xmlContent||'',selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
+  state.editor={id:p.id,titulo:p.titulo||'',compas:p.compas||'4/4',instrument:p.instrument||'alto',compases:p.compases||[],audioUrl:p.audioUrl||'',bloque:p.bloque||'General',orden:p.orden||0,xmlContent:p.xmlContent||'',svgUrl:p.svgUrl||'',selectedNote:null,selectedFig:'negra',selectedDot:false,selectedAlt:null};
   renderEditorUI();renderTimeline();goTo('teacher-editor');
 }
 function renderEditorUI(){
@@ -662,6 +663,7 @@ function renderEditorUI(){
   document.getElementById('ed-instrument').value=state.editor.instrument;
   document.getElementById('ed-audio').value=state.editor.audioUrl||'';
   document.getElementById('ed-bloque').value=state.editor.bloque||'General';
+  document.getElementById('ed-svg-url').value=state.editor.svgUrl||'';
   document.getElementById('editor-title-bar').textContent=state.editor.id?'Editar partitura':'Nueva partitura';
   renderNotePalette();renderAltButtons();renderFigurePalette();
 }
@@ -759,7 +761,8 @@ function deleteCompas(ci){state.editor.compases.splice(ci,1);renderTimeline();}
 async function savePartitura(){
   const titulo=document.getElementById('ed-titulo').value.trim();
   if(!titulo){showToast('Escribe un título para la partitura');return;}
-  const data={titulo,compas:state.editor.compas,instrument:document.getElementById('ed-instrument').value,compases:state.editor.compases,audioUrl:document.getElementById('ed-audio').value.trim(),bloque:document.getElementById('ed-bloque').value.trim()||'General',orden:state.editor.orden||0,xmlContent:state.editor.xmlContent||''};
+  const svgUrlVal=document.getElementById('ed-svg-url').value.trim();
+  const data={titulo,compas:state.editor.compas,instrument:document.getElementById('ed-instrument').value,compases:state.editor.compases,audioUrl:document.getElementById('ed-audio').value.trim(),bloque:document.getElementById('ed-bloque').value.trim()||'General',orden:state.editor.orden||0,xmlContent:state.editor.xmlContent||'',svgUrl:svgUrlVal};
   try{
     if(state.editor.id){await apiPut('/api/partituras/'+state.editor.id,data);showToast('✓ Partitura actualizada');}
     else{const res=await apiPost('/api/partituras',data);state.editor.id=res.id;showToast('✓ Partitura guardada');}
@@ -870,7 +873,7 @@ async function loadStudentList(){
 }
 async function openPartitura(id){
   const p=await apiGet('/api/partituras/'+id);
-  state.student.current=p;state.student.mode=1;state.student.layout=4;
+  p.svgUrl=p.svgUrl||''; state.student.current=p;state.student.mode=1;state.student.layout=4;
   state.student.playing=false;state.student.playPos=null;
   startMeasure=0; loopMeasureStart=-1; loopMeasureEnd=-1; globalLoopActive=false;
   lastOsmdMeasure=-1; playbackAudioStart=null;
@@ -1619,11 +1622,71 @@ function renderViewer(){
       }
     }
     wrap.innerHTML=html;
-  } else if(mode===2||mode===3){
-    wrap.innerHTML='<p style="color:var(--muted);padding:1rem;text-align:center;font-size:0.85rem;">Cargando partitura...</p>';
+  } else if(mode===2){
+    // Paralela: SVG/PNG tiene prioridad si existe, si no usa OSMD
+    wrap.innerHTML='<p style="color:var(--muted);padding:1rem;text-align:center;font-size:0.85rem;">Cargando...</p>';
+    const svgUrl=p.svgUrl||'';
     const xmlContent=p.xmlContent||'';
-    setTimeout(()=>{ renderOSMD(xmlContent, mode, wrap, false); }, 30);
+    setTimeout(()=>{
+      if(svgUrl){
+        renderImageScore(svgUrl, wrap);
+      } else if(xmlContent){
+        renderOSMD(xmlContent, mode, wrap, false);
+      } else {
+        wrap.innerHTML='<p style="color:var(--muted);padding:2rem;text-align:center">Sin partitura. Añade un XML o imagen SVG desde el editor.</p>';
+      }
+    }, 30);
   }
+}
+
+// Mostrar imagen SVG/PNG desde Drive con cursor de reproducción superpuesto
+function renderImageScore(svgUrl, container){
+  container.innerHTML='';
+  // Construir URL de Drive si es solo un ID
+  const url=svgUrl.startsWith('http')?svgUrl:`/api/audio/${svgUrl}`;
+  const wrap=document.createElement('div');
+  wrap.style.cssText='position:relative;width:100%;background:white;border-radius:8px;border:1px solid var(--border);overflow:hidden;';
+
+  const img=document.createElement('img');
+  img.src=url;
+  img.style.cssText='width:100%;display:block;';
+  img.onerror=()=>{ container.innerHTML='<p style="color:#c62828;padding:2rem;text-align:center">No se pudo cargar la imagen. Comprueba el ID de Drive.</p>'; };
+
+  // Cursor de reproducción — línea vertical que se mueve con la música
+  const cursor=document.createElement('div');
+  cursor.id='img-score-cursor';
+  cursor.style.cssText='position:absolute;top:0;bottom:0;width:3px;background:var(--accent);opacity:0.8;pointer-events:none;display:none;box-shadow:0 0 8px rgba(91,79,207,0.6);transition:left 0.15s linear;';
+
+  wrap.appendChild(img);
+  wrap.appendChild(cursor);
+  container.appendChild(wrap);
+
+  // Calcular posición X del cursor basada en el progreso de la reproducción
+  img.onload=()=>{
+    imgScoreTotalDur=VL.seq.reduce((acc,item)=>{
+      const units=(item.baseUnits||noteDurUnits(item.nota))+(item.tiedUnits||0);
+      return acc+units;
+    },0);
+  };
+}
+
+let imgScoreTotalDur=0;
+let imgScoreCursorRAF=null;
+
+function updateImgScoreCursor(){
+  const cursor=document.getElementById('img-score-cursor');
+  if(!cursor||!state.student.playing||imgScoreTotalDur===0) return;
+  // Estimar posición basada en idx actual vs total
+  const currentIdx=VL.seq.findIndex(s=>s.ci===state.student.playPos?.ci&&s.ni===state.student.playPos?.ni);
+  if(currentIdx>=0){
+    const pct=currentIdx/VL.seq.length;
+    const img=cursor.closest('div')?.querySelector('img');
+    if(img){
+      cursor.style.display='block';
+      cursor.style.left=(pct*img.offsetWidth)+'px';
+    }
+  }
+  imgScoreCursorRAF=requestAnimationFrame(updateImgScoreCursor);
 }
 
 function renderViewerNote(nota,mode,ci,ni,compact=false){
@@ -1719,9 +1782,25 @@ function ssInit(){
   const staffScroll=document.getElementById('ss-staff-scroll');
   staffScroll.innerHTML='<p style="color:#7a7a9a;padding:1rem;font-size:0.85rem;">Cargando partitura...</p>';
 
-  // Usar OSMD si hay XML, si no caer en el SVG propio
+  const svgUrl=p.svgUrl||'';
   const xmlContent=p.xmlContent||'';
-  if(xmlContent){
+
+  if(svgUrl){
+    // Mostrar imagen SVG/PNG en Simply Sax
+    staffScroll.innerHTML='';
+    const url=svgUrl.startsWith('http')?svgUrl:`/api/audio/${svgUrl}`;
+    const wrap=document.createElement('div');
+    wrap.style.cssText='position:relative;width:100%;background:white;min-height:200px;';
+    const img=document.createElement('img');
+    img.src=url;
+    img.style.cssText='width:100%;display:block;';
+    img.onerror=()=>{ staffScroll.innerHTML='<p style="color:#c62828;padding:1rem;">Error cargando imagen</p>'; };
+    const cur=document.createElement('div');
+    cur.id='img-score-cursor';
+    cur.style.cssText='position:absolute;top:0;bottom:0;width:3px;background:var(--accent);opacity:0.85;pointer-events:none;display:none;box-shadow:0 0 8px rgba(91,79,207,0.5);transition:left 0.12s linear;left:0;';
+    wrap.appendChild(img); wrap.appendChild(cur);
+    staffScroll.appendChild(wrap);
+  } else if(xmlContent){
     renderOSMDSimplySax(xmlContent, staffScroll);
   } else {
     ssRenderStaff(p);
@@ -2099,15 +2178,14 @@ function ssInitLoopBar(){
 //  Lee BPM en cada tick — sin drift, sin desincronización
 // ══════════════════════════════════════════════════
 // ══════════════════════════════════════════════════
-//  RELOJ ÚNICO — AudioContext.currentTime para todo
-//  Metro, reproducción y cursor en el mismo reloj
+//  METRÓNOMO — simple, preciso, sincronizable
 // ══════════════════════════════════════════════════
 let metroOn=false;
 let metroTimer=null;
 let metroNextTime=0;
 let metroBeat=0;
 let metroBeatsPerBar=4;
-let playbackAudioStart=null; // AudioContext.currentTime cuando arrancó la reproducción
+let playbackAudioStart=null; // tiempo AudioContext del beat 0 de la reproducción
 
 function toggleGlobalMetro(){
   metroOn=!metroOn;
@@ -2118,6 +2196,7 @@ function toggleGlobalMetro(){
 
 function metroStop(){
   if(metroTimer){clearTimeout(metroTimer);metroTimer=null;}
+  metroNextTime=0; metroBeat=0;
 }
 
 function metroStart(){
@@ -2128,23 +2207,22 @@ function metroStart(){
   const p=state.student.current;
   metroBeatsPerBar=parseInt((p?.compas||'4/4').split('/')[0])||4;
   const beatSec=60/state.student.bpm;
+  const now=ctx.currentTime;
 
-  // Sincronizar con la reproducción
-  // playbackAudioStart es el tiempo AudioContext del "beat 0" de la pieza completa
-  if(playbackAudioStart!==null){
-    const elapsed=ctx.currentTime-playbackAudioStart;
-    const beatsElapsed=elapsed/beatSec;
-    // Encontrar el próximo beat entero
-    metroBeat=Math.floor(beatsElapsed)+1;
-    metroNextTime=playbackAudioStart+metroBeat*beatSec;
-    // Si el próximo beat ya pasó (raro pero posible), ir al siguiente
-    while(metroNextTime<=ctx.currentTime+0.01) {
+  if(playbackAudioStart!==null && (state.student.playing || SS.playing)){
+    // Reproducción activa — sincronizar al beat actual
+    const elapsed=now - playbackAudioStart;
+    const beatsGone=Math.floor(elapsed/beatSec);
+    metroBeat=beatsGone+1;
+    metroNextTime=playbackAudioStart + metroBeat*beatSec;
+    while(metroNextTime <= now+0.01){
       metroBeat++;
-      metroNextTime=playbackAudioStart+metroBeat*beatSec;
+      metroNextTime=playbackAudioStart + metroBeat*beatSec;
     }
   } else {
+    // Sin reproducción — arrancar en beat 1 ahora
     metroBeat=0;
-    metroNextTime=ctx.currentTime+0.02;
+    metroNextTime=now+0.05;
   }
   metroTick();
 }
@@ -2157,12 +2235,12 @@ function metroTick(){
     const isDown=(metroBeat%metroBeatsPerBar===0);
     const osc=ctx.createOscillator(), gain=ctx.createGain();
     osc.type='sine';
-    osc.frequency.value=isDown?1200:800;
+    osc.frequency.value=isDown?1400:900;  // agudo=beat1, grave=resto
     gain.gain.setValueAtTime(0, metroNextTime);
-    gain.gain.linearRampToValueAtTime(isDown?0.5:0.3, metroNextTime+0.004);
-    gain.gain.exponentialRampToValueAtTime(0.001, metroNextTime+0.07);
+    gain.gain.linearRampToValueAtTime(isDown?0.7:0.35, metroNextTime+0.003);
+    gain.gain.exponentialRampToValueAtTime(0.001, metroNextTime+0.06);
     osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(metroNextTime); osc.stop(metroNextTime+0.08);
+    osc.start(metroNextTime); osc.stop(metroNextTime+0.07);
     metroNextTime+=beatSec;
     metroBeat++;
   }
@@ -2175,7 +2253,6 @@ function stopGlobalMetro(){}
 function updateBPM(val){
   state.student.bpm=parseInt(val);
   document.getElementById('bpm-display').textContent=val+' BPM';
-  // Reiniciar metrónomo sincronizado si está activo
   if(metroOn){ metroStop(); metroStart(); }
 }
 
@@ -2525,6 +2602,22 @@ let lastOsmdMeasure=-1;
 function highlightNote(ci,ni){
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
   const mode=state.student.mode;
+
+  // Cursor de imagen SVG/PNG — funciona en todos los modos si hay imagen
+  const imgCursor=document.getElementById('img-score-cursor');
+  if(imgCursor){
+    const idx=VL.seq.findIndex(s=>s.ci===ci&&s.ni===ni);
+    if(idx>=0){
+      const pct=idx/Math.max(VL.seq.length-1,1);
+      const img=imgCursor.closest('div')?.querySelector('img');
+      if(img&&img.offsetWidth>0){
+        imgCursor.style.display='block';
+        imgCursor.style.left=(pct*img.offsetWidth)+'px';
+      }
+    }
+    return; // con imagen no usamos OSMD
+  }
+
   if(mode===1){
     const el=document.getElementById(`vn-${ci}-${ni}`);
     if(el){el.classList.add('active-note');el.scrollIntoView({behavior:'smooth',block:'nearest'});}
