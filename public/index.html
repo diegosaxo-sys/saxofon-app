@@ -1299,23 +1299,22 @@ function cleanXML(xmlStr, mode){
     });
     doc.querySelectorAll('system-layout, page-layout').forEach(el=>el.parentElement?.removeChild(el));
 
-    // Solo en modo pentagrama: eliminar nombres de nota
-    if(mode===3){
-      const noteNames=['Do','Re','Mi','Fa','Sol','La','Si','C','D','E','F','G','A','B'];
-      doc.querySelectorAll('words').forEach(w=>{
-        const txt=(w.textContent||'').trim();
-        if(noteNames.includes(txt)){
-          const direction=w.closest('direction');
-          if(direction) direction.parentElement?.removeChild(direction);
-          else w.parentElement?.removeChild(w);
-        }
-      });
-      doc.querySelectorAll('fingering').forEach(f=>{
-        const direction=f.closest('direction');
+    // Eliminar nombres de nota en todos los modos (modo 2 y 3)
+    // En Paralela el pentagrama queda limpio — la nota se muestra en el frame
+    const noteNames=['Do','Re','Mi','Fa','Sol','La','Si','C','D','E','F','G','A','B'];
+    doc.querySelectorAll('words').forEach(w=>{
+      const txt=(w.textContent||'').trim();
+      if(noteNames.includes(txt)){
+        const direction=w.closest('direction');
         if(direction) direction.parentElement?.removeChild(direction);
-        else f.parentElement?.removeChild(f);
-      });
-    }
+        else w.parentElement?.removeChild(w);
+      }
+    });
+    doc.querySelectorAll('fingering').forEach(f=>{
+      const direction=f.closest('direction');
+      if(direction) direction.parentElement?.removeChild(direction);
+      else f.parentElement?.removeChild(f);
+    });
 
     return new XMLSerializer().serializeToString(doc);
   }catch(e){
@@ -1958,6 +1957,9 @@ function ssStop(){
   hideStopFab();
   hideBubbles();
   osmdCursorReset();
+  // Resetear compás a 1 para que el próximo play arranque desde el inicio
+  startMeasure=0;
+  updateStartMeasureUI();
   document.getElementById('play-btn').textContent='▶';
   document.querySelectorAll('.ss-active').forEach(el=>el.classList.remove('ss-active'));
 }
@@ -2632,8 +2634,9 @@ function stopPlayback(){
   playbackAudioStart=null;
   hideStopFab();
   hideBubbles();
-  // NO reseteamos el cursor OSMD aquí — se queda donde paró
-  // Se resetea solo al abrir nueva partitura o al llamar goToStartMeasure
+  // Resetear compás a 1 para que el próximo play arranque desde el inicio
+  startMeasure=0;
+  updateStartMeasureUI();
   const btn=document.getElementById('play-btn');if(btn&&state.student.mode!==4)btn.textContent='▶';
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
 }
