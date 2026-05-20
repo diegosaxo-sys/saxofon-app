@@ -28,7 +28,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .ss-staff-scroll svg{display:block;}
 
 /* HOME */
-#screen-home{align-items:center;justify-content:center;gap:2rem;padding:2rem;background:radial-gradient(ellipse at 30% 30%,#EDE0C4 0%,var(--bg) 65%);}
+#screen-home{align-items:center;justify-content:center;gap:2rem;padding:0;background:var(--bg);position:relative;overflow:hidden;}
 .home-logo{text-align:center;}
 .home-logo .sax-icon{font-size:5rem;display:block;margin-bottom:0.5rem;}
 .home-logo h1{font-size:3rem;font-weight:900;letter-spacing:-1px;color:var(--accent);line-height:1;}
@@ -298,10 +298,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <!-- HOME -->
 <div id="screen-home" class="screen active">
-  <div class="home-logo"><span class="sax-icon">🎷</span><h1>SaxoApp</h1><p>Partituras visuales de saxofón</p></div>
-  <div class="home-cards">
-    <div class="home-card teacher" onclick="goTo('teacher-list')"><span class="icon">👩‍🏫</span><h2>Profesor</h2><p>Crear y gestionar partituras</p></div>
-    <div class="home-card student" onclick="goTo('student-list')"><span class="icon">🎓</span><h2>Alumno</h2><p>Ver y practicar partituras</p></div>
+  <div class="home-bg" style="position:absolute;inset:0;background-image:url('/api/image/1aBZYtgd-Tmevx9BosJyiWLYrwIIENPjY');background-size:cover;background-position:center;z-index:0;"></div>
+  <div class="home-overlay" style="position:absolute;inset:0;background:rgba(0,0,0,0.45);z-index:1;"></div>
+  <div class="home-content" style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2rem;padding:2rem;min-height:100vh;width:100%;">
+    <div class="home-logo" style="text-align:center;">
+      <img src="/api/image/1JYGYE1ELx595pTs9hnZKHY-SlF5tKMrD" alt="DC Logo" style="width:160px;max-width:60vw;margin-bottom:1rem;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.5));" onerror="this.style.display='none'">
+      <p style="color:rgba(255,255,255,0.85);margin-top:0.5rem;font-size:1.05rem;font-family:var(--font);font-weight:600;text-shadow:0 2px 8px rgba(0,0,0,0.5);">Método Zero a Cover</p>
+    </div>
+    <div class="home-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;width:100%;max-width:480px;">
+      <div class="home-card teacher" onclick="goTo('teacher-list')" style="background:rgba(255,255,255,0.15);backdrop-filter:blur(12px);border:1.5px solid rgba(255,255,255,0.3);color:white;"><span class="icon">👩‍🏫</span><h2 style="color:white;">Profesor</h2><p style="color:rgba(255,255,255,0.75);">Crear y gestionar partituras</p></div>
+      <div class="home-card student" onclick="goTo('student-list')" style="background:rgba(255,255,255,0.15);backdrop-filter:blur(12px);border:1.5px solid rgba(255,255,255,0.3);color:white;"><span class="icon">🎓</span><h2 style="color:white;">Alumno</h2><p style="color:rgba(255,255,255,0.75);">Ver y practicar partituras</p></div>
+    </div>
   </div>
 </div>
 
