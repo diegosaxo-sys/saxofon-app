@@ -1650,7 +1650,7 @@ function renderImageScore(svgUrl, container){
   const img=document.createElement('img');
   img.src=url;
   img.style.cssText='width:100%;display:block;';
-  img.onerror=()=>{ container.innerHTML='<p style="color:#c62828;padding:2rem;text-align:center">No se pudo cargar la imagen. Comprueba el ID de Drive.</p>'; };
+  img.onerror=()=>{ container.innerHTML='<p style="color:#c62828;padding:2rem;text-align:center">No se pudo cargar la imagen.<br><small>Drive bloquea archivos SVG. Exporta como <strong>PNG</strong> desde MuseScore y vuelve a intentarlo.</small></p>'; };
 
   // Cursor de reproducción — línea vertical que se mueve con la música
   const cursor=document.createElement('div');
@@ -1765,7 +1765,9 @@ function ssFlatNotes(){
       if(nota&&nota!=='skip'){
         const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
         const dot=nota.dot&&fig.dot_val,val=dot?fig.dot_val:fig.val;
-        out.push({nota,ci,ni,dur_ms:val*(60000/state.student.bpm/4),color:nota.type==='note'?(NOTE_COLORS[nota.key]||'#888'):'#888'});
+        out.push({nota,ci,ni,
+          baseUnits:val, // unidades de semicorchea — duración real se calcula al reproducir
+          color:nota.type==='note'?(NOTE_COLORS[nota.key]||'#888'):'#888'});
       }
     });
   });
@@ -1794,7 +1796,7 @@ function ssInit(){
     const img=document.createElement('img');
     img.src=url;
     img.style.cssText='width:100%;display:block;';
-    img.onerror=()=>{ staffScroll.innerHTML='<p style="color:#c62828;padding:1rem;">Error cargando imagen</p>'; };
+    img.onerror=()=>{ staffScroll.innerHTML='<p style="color:#c62828;padding:1rem;">Error al cargar. Drive bloquea SVG — usa PNG.</p>'; };
     const cur=document.createElement('div');
     cur.id='img-score-cursor';
     cur.style.cssText='position:absolute;top:0;bottom:0;width:3px;background:var(--accent);opacity:0.85;pointer-events:none;display:none;box-shadow:0 0 8px rgba(91,79,207,0.5);transition:left 0.12s linear;left:0;';
@@ -1999,6 +2001,9 @@ function ssScheduleNotes(idx){
       startGlobalMetro(SS.audioStartTime, ssBeatOffset(SS.loopStart));
       setTimeout(()=>ssScheduleNotes(SS.loopStart),20);
     } else {
+      // Canción terminada — resetear a compás 1
+      startMeasure=0;
+      updateStartMeasureUI();
       setTimeout(()=>ssStop(),10);
     }
     return;
@@ -2008,12 +2013,40 @@ function ssScheduleNotes(idx){
   const ctx=getAudioCtx();
   const scheduleAt=SS.noteScheduleTime;
   const delayMs=Math.max(0,(scheduleAt-ctx.currentTime)*1000);
-  setTimeout(()=>{if(!SS.playing)return;ssHighlight(idx);ssScrollToNote(idx);updateSSHUD(idx);},Math.max(0,delayMs-30));
+  // Calcular duración con BPM ACTUAL — se adapta si el usuario cambia el slider
+  const units=(item.baseUnits||noteDurUnits(item.nota))+(item.tiedUnits||0);
+  const durSec=units*(60/state.student.bpm/4);
+  const durMs=durSec*1000;
+  setTimeout(()=>{
+    if(!SS.playing)return;
+    ssHighlight(idx);
+    updateSSHUD(idx);
+    // Mover cursor OSMD si está activo en Simply Sax
+    if(item.nota&&osmdInstance){
+      if(item.ci!==lastOsmdMeasure){
+        osmdCursorToMeasure(item.ci);
+        lastOsmdMeasure=item.ci;
+      } else {
+        osmdCursorNext();
+      }
+    }
+    // Mover cursor de imagen si hay SVG/PNG
+    const imgCursor=document.getElementById('img-score-cursor');
+    if(imgCursor){
+      const total=SS.notes.length;
+      const pct=total>1?idx/(total-1):0;
+      const img=imgCursor.closest('div')?.querySelector('img');
+      if(img&&img.offsetWidth>0){
+        imgCursor.style.display='block';
+        imgCursor.style.left=(pct*img.offsetWidth)+'px';
+      }
+    }
+  },Math.max(0,delayMs-30));
   if(item.nota.type!=='rest'&&state.student.soundOn){
     setTimeout(()=>{if(SS.playing)playNoteSound(item.nota);},delayMs);
   }
-  SS.noteScheduleTime+=item.dur_ms/1000;
-  SS.timer=setTimeout(()=>ssScheduleNotes(idx+1),delayMs+item.dur_ms);
+  SS.noteScheduleTime+=durSec;
+  SS.timer=setTimeout(()=>ssScheduleNotes(idx+1),delayMs+durMs);
 }
 // ── Globo flotante de nota activa ──
 function showNoteBubble(bubbleId, innerId, nameId, infoId, color, name, info, anchorEl){
