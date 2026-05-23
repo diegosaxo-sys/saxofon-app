@@ -298,16 +298,32 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <!-- HOME -->
 <div id="screen-home" class="screen active">
-  <div class="home-bg" style="position:absolute;inset:0;background-image:url('/api/image/1aBZYtgd-Tmevx9BosJyiWLYrwIIENPjY');background-size:cover;background-position:center;z-index:0;"></div>
-  <div class="home-overlay" style="position:absolute;inset:0;background:rgba(0,0,0,0.45);z-index:1;"></div>
-  <div class="home-content" style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2rem;padding:2rem;min-height:100vh;width:100%;">
-    <div class="home-logo" style="text-align:center;">
-      <img src="/api/image/1JYGYE1ELx595pTs9hnZKHY-SlF5tKMrD" alt="DC Logo" style="width:160px;max-width:60vw;margin-bottom:1rem;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.5));" onerror="this.style.display='none'">
-      <p style="color:rgba(255,255,255,0.85);margin-top:0.5rem;font-size:1.05rem;font-family:var(--font);font-weight:600;text-shadow:0 2px 8px rgba(0,0,0,0.5);">Método Zero a Cover</p>
+  <div class="home-bg" style="position:absolute;inset:0;background-image:url('/api/image/1FPPIrfL2SvsFHE7IhJ6gNfUR-zx5PAnm');background-size:cover;background-position:center;z-index:0;"></div>
+  <div class="home-overlay" style="position:absolute;inset:0;background:linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.6) 100%);z-index:1;"></div>
+  <div class="home-content" style="position:relative;z-index:2;display:flex;flex-direction:column;width:100%;min-height:100vh;padding:2rem;">
+    <!-- Logo arriba izquierda -->
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:auto;">
+      <img src="/api/image/1JYGYE1ELx595pTs9hnZKHY-SlF5tKMrD" alt="DC Logo" style="width:72px;height:72px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.6));" onerror="this.style.display='none'">
+      <div>
+        <div style="color:white;font-size:1.1rem;font-weight:900;font-family:var(--font);letter-spacing:-0.5px;text-shadow:0 2px 6px rgba(0,0,0,0.5);">Diego Rodríguez</div>
+        <div style="color:rgba(255,255,255,0.75);font-size:0.78rem;font-weight:600;font-family:var(--font);">Método Zero a Cover</div>
+      </div>
     </div>
-    <div class="home-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;width:100%;max-width:480px;">
-      <div class="home-card teacher" onclick="goTo('teacher-list')" style="background:rgba(255,255,255,0.15);backdrop-filter:blur(12px);border:1.5px solid rgba(255,255,255,0.3);color:white;"><span class="icon">👩‍🏫</span><h2 style="color:white;">Profesor</h2><p style="color:rgba(255,255,255,0.75);">Crear y gestionar partituras</p></div>
-      <div class="home-card student" onclick="goTo('student-list')" style="background:rgba(255,255,255,0.15);backdrop-filter:blur(12px);border:1.5px solid rgba(255,255,255,0.3);color:white;"><span class="icon">🎓</span><h2 style="color:white;">Alumno</h2><p style="color:rgba(255,255,255,0.75);">Ver y practicar partituras</p></div>
+    <!-- Cards centradas -->
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:1.5rem;padding:2rem 0;">
+      <p style="color:rgba(255,255,255,0.7);font-size:0.9rem;font-weight:600;font-family:var(--font);letter-spacing:0.05em;text-transform:uppercase;">Accede como</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;width:100%;max-width:400px;">
+        <div onclick="goTo('teacher-list')" style="background:rgba(255,255,255,0.12);backdrop-filter:blur(16px);border:1.5px solid rgba(255,255,255,0.25);border-radius:16px;padding:1.75rem 1rem;text-align:center;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
+          <div style="font-size:2rem;margin-bottom:0.5rem;">🎼</div>
+          <div style="color:white;font-size:1rem;font-weight:800;font-family:var(--font);">Profesor</div>
+          <div style="color:rgba(255,255,255,0.6);font-size:0.75rem;margin-top:0.2rem;font-family:var(--font);">Gestionar partituras</div>
+        </div>
+        <div onclick="goTo('student-list')" style="background:rgba(255,255,255,0.12);backdrop-filter:blur(16px);border:1.5px solid rgba(255,255,255,0.25);border-radius:16px;padding:1.75rem 1rem;text-align:center;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
+          <div style="font-size:2rem;margin-bottom:0.5rem;">🎷</div>
+          <div style="color:white;font-size:1rem;font-weight:800;font-family:var(--font);">Alumno</div>
+          <div style="color:rgba(255,255,255,0.6);font-size:0.75rem;margin-top:0.2rem;font-family:var(--font);">Practicar y estudiar</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -2487,44 +2503,146 @@ function updateViewerLoopBar(){
 }
 function togglePlayback(){state.student.playing?stopPlayback():startPlayback();}
 function noteDurUnits(nota){
-  // Duración en unidades de semicorchea (independiente del BPM)
   const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
   return (nota.dot&&fig.dot_val)?fig.dot_val:fig.val;
 }
 
 function noteDurSec(nota){
-  // Duración en segundos al BPM actual
   return noteDurUnits(nota)*(60/state.student.bpm/4);
 }
 
+// ── Construir secuencia desde OSMD (respeta repeticiones, casillas, ligaduras)
+// Si no hay OSMD activo, cae en el sistema JSON
 function buildVLSeq(){
   const p=state.student.current;
   if(!p||!p.compases){VL.seq=[];return;}
-  VL.seq=[];
-  let tieTargetIdx=null; // índice en VL.seq de la nota que acumula duración
 
+  // Si hay OSMD activo y XML, usar el cursor de OSMD como fuente de verdad
+  if(osmdInstance && p.xmlContent){
+    buildVLSeqFromOSMD();
+    return;
+  }
+
+  // Fallback: JSON (sin repeticiones)
+  VL.seq=[];
+  let tieTargetIdx=null;
   p.compases.forEach((c,ci)=>{
     (c.notas||[]).forEach((nota,ni)=>{
       if(!nota||nota==='skip') return;
       const units=noteDurUnits(nota);
-
       if(tieTargetIdx!==null){
-        // Esta nota es destino de ligadura — acumular duración, no sonar separada
         VL.seq[tieTargetIdx].tiedUnits=(VL.seq[tieTargetIdx].tiedUnits||0)+units;
-        if(nota.tied){
-          // Cadena continúa — tieTargetIdx se mantiene
-        } else {
-          tieTargetIdx=null;
-        }
+        if(!nota.tied) tieTargetIdx=null;
         return;
       }
-
-      VL.seq.push({ci,ni,nota,baseUnits:units,tiedUnits:0});
-      if(nota.tied){
-        tieTargetIdx=VL.seq.length-1;
-      }
+      VL.seq.push({ci,ni,nota,baseUnits:units,tiedUnits:0,fromOSMD:false});
+      if(nota.tied) tieTargetIdx=VL.seq.length-1;
     });
   });
+  VL.loopEnd=VL.seq.length-1;
+  updateViewerLoopBar();
+}
+
+function buildVLSeqFromOSMD(){
+  // Recorre el cursor de OSMD respetando repeticiones, casillas 1ª/2ª vez y ligaduras
+  VL.seq=[];
+  try{
+    const cursor=osmdInstance.cursor;
+    cursor.reset();
+    const p=state.student.current;
+    const beatsPerWhole=4; // redonda = 4 negras
+
+    while(!cursor.Iterator.EndReached){
+      const measureIdx=cursor.Iterator.CurrentMeasureIndex;
+      const voices=cursor.Iterator.CurrentVisibleVoiceEntries();
+
+      if(voices&&voices.length>0){
+        const ve=voices[0]; // primera voz
+        const notes=ve.Notes||[];
+
+        // Calcular duración de esta posición desde OSMD
+        // currentBeat da la posición en el compás, usamos la duración de la primera nota
+        let durFraction=0.25; // default: negra
+        if(notes.length>0&&notes[0].Length){
+          // Length es fracción de redonda (1=redonda, 0.5=blanca, 0.25=negra, 0.125=corchea...)
+          durFraction=notes[0].Length.RealValue||0.25;
+        }
+        const durSixteenths=Math.round(durFraction*16); // convertir a semicorcheas
+
+        // Filtrar notas que son continuación de ligadura (tieStart anterior)
+        // OSMD marca las notas con NoteTie — si tiene tieStart, suena; si solo tieEnd, no suena
+        const soundingNotes=notes.filter(n=>{
+          if(!n.NoteTie) return true; // sin ligadura — suena
+          // Si tiene tieStart (inicio de ligadura) — suena
+          // Si solo tiene tieEnd (continuación) — no suena
+          return n.NoteTie.StartNote===n;
+        });
+
+        if(soundingNotes.length>0){
+          const firstNote=soundingNotes[0];
+          const isRest=firstNote.isRest();
+
+          // Calcular duración total incluyendo notas ligadas
+          let totalDurFraction=durFraction;
+          if(firstNote.NoteTie&&firstNote.NoteTie.StartNote===firstNote){
+            // Sumar duración de todas las notas de la ligadura
+            let tieNote=firstNote.NoteTie.Notes;
+            if(tieNote&&tieNote.length>1){
+              totalDurFraction=tieNote.reduce((sum,n)=>{
+                return sum+(n.Length?n.Length.RealValue||0:0);
+              },0);
+            }
+          }
+          const totalSixteenths=Math.max(1,Math.round(totalDurFraction*16));
+
+          if(isRest){
+            VL.seq.push({
+              ci:measureIdx, ni:VL.seq.length,
+              nota:{type:'rest',fig:'negra',dot:false},
+              baseUnits:totalSixteenths, tiedUnits:0, fromOSMD:true
+            });
+          } else {
+            // Extraer pitch de la primera nota sonante
+            const pitch=firstNote.Pitch;
+            const stepMap={0:'do',1:'re',2:'mi',3:'fa',4:'sol',5:'la',6:'si'};
+            const key=stepMap[pitch?pitch.FundamentalNote:0]||'do';
+            const oct=pitch?Math.max(0,Math.min(2,pitch.Octave-4)):1;
+            const altVal=pitch?pitch.Accidental:0;
+            const alt=altVal>0?'sharp':altVal<0?'flat':null;
+
+            // Figura aproximada desde duración
+            let fig='negra';
+            if(totalSixteenths>=16) fig='redonda';
+            else if(totalSixteenths>=8) fig='blanca';
+            else if(totalSixteenths>=4) fig='negra';
+            else if(totalSixteenths>=2) fig='corchea';
+            else fig='semicorchea';
+
+            VL.seq.push({
+              ci:measureIdx, ni:VL.seq.length,
+              nota:{type:'note',key,oct,fig,dot:false,alt},
+              baseUnits:totalSixteenths, tiedUnits:0, fromOSMD:true
+            });
+          }
+        }
+      }
+      cursor.next();
+    }
+    cursor.reset();
+    cursor.show();
+    lastOsmdMeasure=-1;
+  }catch(e){
+    console.warn('buildVLSeqFromOSMD error:', e);
+    // Fallback al JSON si OSMD falla
+    VL.seq=[];
+    const p=state.student.current;
+    p.compases.forEach((c,ci)=>{
+      (c.notas||[]).forEach((nota,ni)=>{
+        if(!nota||nota==='skip') return;
+        VL.seq.push({ci,ni,nota,baseUnits:noteDurUnits(nota),tiedUnits:0,fromOSMD:false});
+      });
+    });
+  }
   VL.loopEnd=VL.seq.length-1;
   updateViewerLoopBar();
 }
@@ -2537,9 +2655,8 @@ function startPlayback(startIdx){
   showStopFab();
   const ctx=getAudioCtx();
   if(ctx.state==='suspended')ctx.resume();
-  const audioStart=ctx.currentTime+0.05;
 
-  // Determinar índice de inicio — prioridad: parámetro > startMeasure > loopStart
+  // Determinar índice de inicio
   let idx0;
   if(startIdx!=null){
     idx0=startIdx;
@@ -2549,85 +2666,82 @@ function startPlayback(startIdx){
   } else {
     idx0=globalLoopActive?VL.loopStart:0;
   }
-
-  // Sincronizar bucle global si está activo
   if(globalLoopActive) syncLoopToMeasures();
 
-  const compasStr=p.compas||'4/4';
-  const[numStr]=compasStr.split('/');
-  const beatsPerBar=parseInt(numStr)||4;
-  const startItem=VL.seq[idx0];
-  let beatOffset=0;
-  if(startItem){
-    const c=p.compases[startItem.ci];
-    if(c){
-      let slots=0;
-      for(let k=0;k<startItem.ni;k++){
-        if(c.notas[k]&&c.notas[k]!=='skip'){
-          const f=FIGURES.find(f=>f.id===c.notas[k].fig)||FIGURES[2];
-          const d=c.notas[k].dot&&f.dot_val;
-          slots+=(d?f.dot_val:f.val);
-        }
-      }
-      beatOffset=Math.round(slots/4)%beatsPerBar;
-    }
-  }
-  // Calcular beats totales desde el inicio de la pieza hasta idx0
-  // Esto permite que el metrónomo sincronice el acento correctamente
-  const compasStr2=p.compas||'4/4';
-  const beatsPerBar2=parseInt(compasStr2.split('/')[0])||4;
-  // Sumar duración en beats de todas las notas anteriores a idx0
+  // Calcular playbackAudioStart para sincronizar el metrónomo
+  const beatSec=60/state.student.bpm;
   let beatsBeforeStart=0;
   for(let k=0;k<idx0;k++){
     if(VL.seq[k]){
-      const units=(VL.seq[k].baseUnits||noteDurUnits(VL.seq[k].nota))+(VL.seq[k].tiedUnits||0);
-      beatsBeforeStart+=units/4; // unidades de semicorchea → beats (negras)
+      const u=(VL.seq[k].baseUnits||noteDurUnits(VL.seq[k].nota))+(VL.seq[k].tiedUnits||0);
+      beatsBeforeStart+=u/4;
     }
   }
-  // playbackAudioStart es el tiempo AudioContext del "compás 1, beat 1" virtual
-  // = audioStart - (beatsBeforeStart * beatSec)
-  const beatSecNow=60/state.student.bpm;
-  playbackAudioStart=audioStart - beatsBeforeStart*beatSecNow;
-  // Reiniciar metrónomo si está activo para sincronizarlo
+  const audioStart=ctx.currentTime+0.1;
+  playbackAudioStart=audioStart-beatsBeforeStart*beatSec;
   if(metroOn){ metroStop(); metroStart(); }
 
-  // Reproducción con AudioContext.currentTime — sin drift
-  let idx=idx0;
-  let nextAudioTime=audioStart; // tiempo AudioContext de la próxima nota
+  // ── Web Audio Scheduler preciso ──
+  // Pre-programa todas las notas con tiempos exactos de AudioContext
+  // El visual (highlightNote) se dispara con setTimeout calibrado al tiempo audio
+  const LOOKAHEAD=0.3; // segundos que programamos por adelantado
+  const SCHEDULE_INTERVAL=100; // ms entre llamadas al scheduler
 
-  function playNext(){
-    if(!state.student.playing)return;
-    const ctx=getAudioCtx();
-    const endIdx=VL.loopActive?VL.loopEnd:VL.seq.length-1;
-    if(idx>endIdx){
-      if(VL.loopActive){
-        idx=VL.loopStart;
-        nextAudioTime=ctx.currentTime+0.02;
-        playbackAudioStart=nextAudioTime;
-        if(metroOn){ metroStop(); metroStart(); }
-      } else { stopPlayback(); return; }
-    }
-    const item=VL.seq[idx];
-    state.student.playPos={ci:item.ci,ni:item.ni};
-    startMeasure=item.ci;
-    updateStartMeasureUI();
-    highlightNote(item.ci,item.ni);
-    playNoteSound(item.nota);
-    const pct=Math.round((idx/VL.seq.length)*100);
-    const fill=document.getElementById('viewer-progress-fill');
-    if(fill){fill.style.width=pct+'%';fill.style.background=item.nota.type==='note'?(NOTE_COLORS[item.nota.key]||'var(--accent)'):'var(--accent)';}
+  let schedIdx=idx0;
+  let schedTime=audioStart;
+  let visualTimers=[];
 
-    // Duración total = nota base + unidades acumuladas de ligaduras
+  function scheduleNote(item, audioTime){
     const totalUnits=(item.baseUnits||noteDurUnits(item.nota))+(item.tiedUnits||0);
-    const durSec=totalUnits*(60/state.student.bpm/4);
-    nextAudioTime+=durSec;
-    idx++;
-
-    // Esperar hasta el tiempo correcto usando AudioContext
-    const delayMs=Math.max(0,(nextAudioTime-ctx.currentTime)*1000-20);
-    state.student.playTimer=setTimeout(playNext, delayMs);
+    const dur=totalUnits*(60/state.student.bpm/4);
+    // Programar sonido con tiempo exacto de AudioContext
+    if(item.nota.type!=='rest'&&state.student.soundOn){
+      playNoteSoundAt(item.nota, audioTime, dur);
+    }
+    // Disparar visual en el momento correcto
+    const visualDelay=(audioTime-ctx.currentTime)*1000-30;
+    const t=setTimeout(()=>{
+      if(!state.student.playing)return;
+      state.student.playPos={ci:item.ci,ni:item.ni};
+      startMeasure=item.ci;
+      updateStartMeasureUI();
+      highlightNote(item.ci,item.ni);
+      const pct=Math.round((schedIdx/VL.seq.length)*100);
+      const fill=document.getElementById('viewer-progress-fill');
+      if(fill){fill.style.width=pct+'%';}
+    }, Math.max(0,visualDelay));
+    visualTimers.push(t);
+    return dur;
   }
-  playNext();
+
+  function scheduler(){
+    if(!state.student.playing)return;
+    const endIdx=VL.loopActive?VL.loopEnd:VL.seq.length-1;
+
+    while(schedTime<ctx.currentTime+LOOKAHEAD){
+      if(schedIdx>endIdx){
+        if(VL.loopActive){
+          schedIdx=VL.loopStart;
+          schedTime=Math.max(schedTime, ctx.currentTime+0.02);
+          playbackAudioStart=schedTime;
+          if(metroOn){ metroStop(); metroStart(); }
+        } else {
+          // Programar el stop visual cuando acabe la última nota
+          const lastNote=VL.seq[endIdx];
+          const lastDur=lastNote?((lastNote.baseUnits||1)+(lastNote.tiedUnits||0))*(60/state.student.bpm/4):1;
+          setTimeout(()=>{ if(state.student.playing) stopPlayback(); }, Math.max(0,(schedTime-ctx.currentTime)*1000+lastDur*1000));
+          return;
+        }
+      }
+      const item=VL.seq[schedIdx];
+      const dur=scheduleNote(item, schedTime);
+      schedTime+=dur;
+      schedIdx++;
+    }
+    state.student.playTimer=setTimeout(scheduler, SCHEDULE_INTERVAL);
+  }
+
+  scheduler();
 }
 function stopPlayback(){
   state.student.playing=false;clearTimeout(state.student.playTimer);state.student.playPos=null;
@@ -2682,21 +2796,36 @@ function playNoteSound(nota){
   if(!state.student.soundOn||!nota||nota.type==='rest')return;
   try{
     const ctx=getAudioCtx();if(ctx.state==='suspended')ctx.resume();
-    const freq=noteFreq(nota.key,nota.oct,nota.alt,state.student.instrument);
     const fig=FIGURES.find(f=>f.id===nota.fig)||FIGURES[2];
     const val=(nota.dot&&fig.dot_val)?fig.dot_val:fig.val;
     const dur=val*(60/state.student.bpm/4)*0.88;
+    playNoteSoundAt(nota, ctx.currentTime, dur);
+  }catch(e){}
+}
+
+// Versión con tiempo exacto de AudioContext — para el scheduler preciso
+function playNoteSoundAt(nota, startTime, durSec){
+  if(!state.student.soundOn||!nota||nota.type==='rest') return;
+  try{
+    const ctx=getAudioCtx();
+    const freq=noteFreq(nota.key,nota.oct,nota.alt,state.student.instrument);
+    const dur=durSec*0.92; // pequeño release al final
     const osc=ctx.createOscillator(),gain=ctx.createGain(),filter=ctx.createBiquadFilter();
     const lfo=ctx.createOscillator(),lfoGain=ctx.createGain();
-    osc.type='sawtooth';osc.frequency.setValueAtTime(freq,ctx.currentTime);
-    lfo.frequency.value=5.5;lfoGain.gain.value=4;lfo.connect(lfoGain);lfoGain.connect(osc.frequency);lfo.start();
+    osc.type='sawtooth';
+    osc.frequency.setValueAtTime(freq, startTime);
+    lfo.frequency.value=5.5;lfoGain.gain.value=3;
+    lfo.connect(lfoGain);lfoGain.connect(osc.frequency);
+    lfo.start(startTime);
     filter.type='bandpass';filter.frequency.value=freq*2.2;filter.Q.value=1.4;
-    gain.gain.setValueAtTime(0,ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.3,ctx.currentTime+0.04);
-    gain.gain.setValueAtTime(0.24,ctx.currentTime+dur*0.7);
-    gain.gain.linearRampToValueAtTime(0,ctx.currentTime+dur);
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(0.3, startTime+0.02);
+    gain.gain.setValueAtTime(0.26, startTime+dur*0.75);
+    gain.gain.linearRampToValueAtTime(0, startTime+dur);
     osc.connect(filter);filter.connect(gain);gain.connect(ctx.destination);
-    osc.start(ctx.currentTime);osc.stop(ctx.currentTime+dur);lfo.stop(ctx.currentTime+dur);
+    osc.start(startTime);
+    osc.stop(startTime+dur);
+    lfo.stop(startTime+dur);
   }catch(e){}
 }
 
