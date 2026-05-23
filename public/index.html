@@ -303,15 +303,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <div class="home-content" style="position:relative;z-index:2;display:flex;flex-direction:column;width:100%;min-height:100vh;padding:2rem;">
     <!-- Logo arriba izquierda -->
     <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:auto;">
-      <img src="/api/image/1JYGYE1ELx595pTs9hnZKHY-SlF5tKMrD" alt="DC Logo" style="width:72px;height:72px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.6));" onerror="this.style.display='none'">
+      <img src="/api/image/1LaDQoK_RJPtWHNZSE4kfii68jGT5WA17" alt="DC Logo" style="width:72px;height:72px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.6));" onerror="this.style.display='none'">
       <div>
-        <div style="color:white;font-size:1.1rem;font-weight:900;font-family:var(--font);letter-spacing:-0.5px;text-shadow:0 2px 6px rgba(0,0,0,0.5);">Diego Rodríguez</div>
-        <div style="color:rgba(255,255,255,0.75);font-size:0.78rem;font-weight:600;font-family:var(--font);">Método Zero a Cover</div>
+        <div style="color:white;font-size:1.1rem;font-weight:900;font-family:var(--font);letter-spacing:-0.5px;text-shadow:0 2px 6px rgba(0,0,0,0.5);">Diego Caride</div>
       </div>
     </div>
     <!-- Cards centradas -->
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:1.5rem;padding:2rem 0;">
-      <p style="color:rgba(255,255,255,0.7);font-size:0.9rem;font-weight:600;font-family:var(--font);letter-spacing:0.05em;text-transform:uppercase;">Accede como</p>
+      <p style="color:rgba(255,255,255,0.85);font-size:1rem;font-weight:700;font-family:var(--font);letter-spacing:0.02em;text-shadow:0 2px 6px rgba(0,0,0,0.4);">Método de Cero a Cover</p>
+      <p style="color:rgba(255,255,255,0.6);font-size:0.78rem;font-weight:600;font-family:var(--font);letter-spacing:0.06em;text-transform:uppercase;margin-top:-0.75rem;">Accede como</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;width:100%;max-width:400px;">
         <div onclick="goTo('teacher-list')" style="background:rgba(255,255,255,0.12);backdrop-filter:blur(16px);border:1.5px solid rgba(255,255,255,0.25);border-radius:16px;padding:1.75rem 1rem;text-align:center;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
           <div style="font-size:2rem;margin-bottom:0.5rem;">🎼</div>
@@ -1979,7 +1979,17 @@ function ssStop(){
   document.getElementById('play-btn').textContent='▶';
   document.querySelectorAll('.ss-active').forEach(el=>el.classList.remove('ss-active'));
 }
-function toggleSSPlayback(){SS.playing?ssStop():ssStart();}
+function toggleSSPlayback(){
+  if(SS.playing){ ssStop(); return; }
+  // Si hay OSMD activo (XML disponible), usar el scheduler preciso de startPlayback
+  const p=state.student.current;
+  if(osmdInstance && p && p.xmlContent){
+    // Usar el mismo sistema que Paralela — repeticiones + ritmo preciso
+    startPlayback();
+  } else {
+    ssStart();
+  }
+}
 function ssSetStart(idx){
   SS.activeIdx=idx;ssHighlight(idx);ssScrollToNote(idx);updateSSHUD(idx);
   if(SS.playing){ssStop();setTimeout(ssStart,50);}
@@ -2602,25 +2612,40 @@ function buildVLSeqFromOSMD(){
               baseUnits:totalSixteenths, tiedUnits:0, fromOSMD:true
             });
           } else {
-            // Extraer pitch de la primera nota sonante
+            // Extraer pitch de OSMD
+            // FundamentalNote: C=0,D=1,E=2,F=3,G=4,A=5,B=6
             const pitch=firstNote.Pitch;
+            // OSMD FundamentalNote enum correcto
             const stepMap={0:'do',1:'re',2:'mi',3:'fa',4:'sol',5:'la',6:'si'};
-            const key=stepMap[pitch?pitch.FundamentalNote:0]||'do';
-            const oct=pitch?Math.max(0,Math.min(2,pitch.Octave-4)):1;
-            const altVal=pitch?pitch.Accidental:0;
-            const alt=altVal>0?'sharp':altVal<0?'flat':null;
+            const fundamentalNote = pitch ? (typeof pitch.FundamentalNote === 'number' ? pitch.FundamentalNote : pitch.FundamentalNote?.value ?? 0) : 0;
+            const key = stepMap[fundamentalNote] || 'do';
 
-            // Figura aproximada desde duración
+            // Octava: OSMD usa octava de concierto (C4=4)
+            // Mapeamos a nuestro sistema: oct0=Do grave, oct1=medio, oct2=agudo
+            const osmdOct = pitch ? (pitch.Octave ?? 4) : 4;
+            const oct = Math.max(0, Math.min(2, osmdOct - 4));
+
+            // Alteración: OSMD Accidental puede ser número o objeto
+            let altVal = 0;
+            if(pitch && pitch.Accidentals != null){
+              altVal = typeof pitch.Accidentals === 'number' ? pitch.Accidentals : 0;
+            } else if(pitch && pitch.Accidental != null){
+              altVal = typeof pitch.Accidental === 'number' ? pitch.Accidental : 0;
+            }
+            const alt = altVal > 0 ? 'sharp' : altVal < 0 ? 'flat' : null;
+
+            // Figura desde duración
             let fig='negra';
             if(totalSixteenths>=16) fig='redonda';
             else if(totalSixteenths>=8) fig='blanca';
             else if(totalSixteenths>=4) fig='negra';
             else if(totalSixteenths>=2) fig='corchea';
             else fig='semicorchea';
+            const dot = (totalSixteenths===6||totalSixteenths===12||totalSixteenths===24);
 
             VL.seq.push({
               ci:measureIdx, ni:VL.seq.length,
-              nota:{type:'note',key,oct,fig,dot:false,alt},
+              nota:{type:'note',key,oct,fig,dot,alt},
               baseUnits:totalSixteenths, tiedUnits:0, fromOSMD:true
             });
           }
@@ -2756,11 +2781,67 @@ function stopPlayback(){
 }
 let lastOsmdMeasure=-1;
 
+// Mostrar globo con nombre de nota en Paralela y Simply Sax
+function showNoteLabel(nota){
+  if(!nota||nota.type==='rest'){
+    // Silencio — limpiar frame SS y ocultar globo
+    updateSSHUD(-1);
+    return;
+  }
+  const name=NOTE_NAMES[NOTE_KEYS.indexOf(nota.key)]||'';
+  const color=NOTE_COLORS[nota.key]||'#555';
+  const oct=OCTAVAS[nota.oct]?.suffix||'';
+  const label=altSym(nota.alt)+name+oct;
+
+  // Simply Sax — actualizar frame
+  const lbl=document.getElementById('ss-note-lbl');
+  const sub=document.getElementById('ss-compas-lbl');
+  const header=document.getElementById('ss-header');
+  if(lbl){ lbl.textContent=label; lbl.style.color=color; }
+  if(header){ header.style.background=color+'22'; }
+
+  // Paralela — globo flotante pequeño junto al cursor OSMD
+  if(state.student.mode===2){
+    let bubble=document.getElementById('paralela-note-bubble');
+    if(!bubble){
+      bubble=document.createElement('div');
+      bubble.id='paralela-note-bubble';
+      bubble.style.cssText='position:fixed;z-index:99;pointer-events:none;padding:4px 10px;border-radius:20px;font-family:Nunito,sans-serif;font-weight:900;font-size:1rem;color:white;box-shadow:0 2px 8px rgba(0,0,0,0.3);white-space:nowrap;transition:left 0.1s,top 0.1s;';
+      document.body.appendChild(bubble);
+    }
+    bubble.textContent=label;
+    bubble.style.background=color;
+    bubble.style.display='block';
+    // Posicionar junto al cursor OSMD
+    if(osmdInstance&&osmdInstance.cursor&&osmdInstance.cursor.cursorElement){
+      const r=osmdInstance.cursor.cursorElement.getBoundingClientRect();
+      bubble.style.left=r.left+'px';
+      bubble.style.top=Math.max(10,r.top-36)+'px';
+    }
+  }
+}
+
+function hideBubbles(){
+  const bubble=document.getElementById('paralela-note-bubble');
+  if(bubble) bubble.style.display='none';
+  // Resetear frame Simply Sax
+  const header=document.getElementById('ss-header');
+  if(header) header.style.background='#1a1a2e';
+  const lbl=document.getElementById('ss-note-lbl');
+  if(lbl){lbl.textContent='—';lbl.style.color='#5a5a8a';}
+  const sub=document.getElementById('ss-compas-lbl');
+  if(sub) sub.textContent='Toca ▶ para empezar';
+}
+
 function highlightNote(ci,ni){
   document.querySelectorAll('.active-note').forEach(el=>el.classList.remove('active-note'));
   const mode=state.student.mode;
 
-  // Cursor de imagen SVG/PNG — funciona en todos los modos si hay imagen
+  // Buscar la nota en VL.seq para mostrar en globo/frame
+  const seqItem=VL.seq.find(s=>s.ci===ci&&s.ni===ni);
+  if(seqItem) showNoteLabel(seqItem.nota);
+
+  // Cursor de imagen SVG/PNG
   const imgCursor=document.getElementById('img-score-cursor');
   if(imgCursor){
     const idx=VL.seq.findIndex(s=>s.ci===ci&&s.ni===ni);
@@ -2772,7 +2853,7 @@ function highlightNote(ci,ni){
         imgCursor.style.left=(pct*img.offsetWidth)+'px';
       }
     }
-    return; // con imagen no usamos OSMD
+    return;
   }
 
   if(mode===1){
