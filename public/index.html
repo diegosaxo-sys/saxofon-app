@@ -301,17 +301,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <div class="home-bg" style="position:absolute;inset:0;background-image:url('/api/image/1FPPIrfL2SvsFHE7IhJ6gNfUR-zx5PAnm');background-size:cover;background-position:center;z-index:0;"></div>
   <div class="home-overlay" style="position:absolute;inset:0;background:linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.6) 100%);z-index:1;"></div>
   <div class="home-content" style="position:relative;z-index:2;display:flex;flex-direction:column;width:100%;min-height:100vh;padding:2rem;">
-    <!-- Logo arriba izquierda -->
-    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:auto;">
-      <img src="/api/image/1LaDQoK_RJPtWHNZSE4kfii68jGT5WA17" alt="DC Logo" style="width:72px;height:72px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.6));" onerror="this.style.display='none'">
-      <div>
-        <div style="color:white;font-size:1.1rem;font-weight:900;font-family:var(--font);letter-spacing:-0.5px;text-shadow:0 2px 6px rgba(0,0,0,0.5);">Diego Caride</div>
+    <!-- Contenido centrado -->
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:1.25rem;padding:2rem 0;">
+      <!-- Logo centrado -->
+      <img src="/api/image/1LaDQoK_RJPtWHNZSE4kfii68jGT5WA17" alt="DC Logo" style="width:100px;height:100px;object-fit:contain;filter:drop-shadow(0 2px 12px rgba(0,0,0,0.7));" onerror="this.style.display='none'">
+      <!-- Diego Caride encima del título -->
+      <div style="text-align:center;">
+        <div style="color:white;font-size:1.3rem;font-weight:900;font-family:var(--font);letter-spacing:-0.5px;text-shadow:0 2px 8px rgba(0,0,0,0.6);">Diego Caride</div>
+        <div style="color:rgba(255,255,255,0.85);font-size:0.95rem;font-weight:700;font-family:var(--font);text-shadow:0 2px 6px rgba(0,0,0,0.4);">Método de Cero a Cover</div>
       </div>
-    </div>
-    <!-- Cards centradas -->
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:1.5rem;padding:2rem 0;">
-      <p style="color:rgba(255,255,255,0.85);font-size:1rem;font-weight:700;font-family:var(--font);letter-spacing:0.02em;text-shadow:0 2px 6px rgba(0,0,0,0.4);">Método de Cero a Cover</p>
-      <p style="color:rgba(255,255,255,0.6);font-size:0.78rem;font-weight:600;font-family:var(--font);letter-spacing:0.06em;text-transform:uppercase;margin-top:-0.75rem;">Accede como</p>
+      <p style="color:rgba(255,255,255,0.55);font-size:0.72rem;font-weight:600;font-family:var(--font);letter-spacing:0.08em;text-transform:uppercase;margin-top:0.25rem;">Accede como</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;width:100%;max-width:400px;">
         <div onclick="goTo('teacher-list')" style="background:rgba(255,255,255,0.12);backdrop-filter:blur(16px);border:1.5px solid rgba(255,255,255,0.25);border-radius:16px;padding:1.75rem 1rem;text-align:center;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
           <div style="font-size:2rem;margin-bottom:0.5rem;">🎼</div>
@@ -2448,8 +2447,14 @@ document.addEventListener('keydown', e=>{
   if(e.code==='Space'&&e.target.tagName!=='INPUT'&&e.target.tagName!=='TEXTAREA'){
     e.preventDefault();
     if(state.screen==='student-view'){
-      if(state.student.mode===4) toggleSSPlayback();
-      else togglePlayback();
+      if(state.student.mode===4){
+        // Simply Sax: parar tanto SS como startPlayback (cuando usa OSMD)
+        if(SS.playing){ ssStop(); }
+        else if(state.student.playing){ stopPlayback(); }
+        else { toggleSSPlayback(); }
+      } else {
+        togglePlayback();
+      }
     }
   }
 });
@@ -2554,37 +2559,49 @@ function buildVLSeq(){
 }
 
 function buildVLSeqFromOSMD(){
-  // Recorre el cursor de OSMD respetando repeticiones, casillas 1ª/2ª vez y ligaduras
+  // OSMD se usa SOLO para timing (duración exacta) y estructura (repeticiones, ligaduras)
+  // El PITCH viene siempre del JSON — así los nombres y frecuencias son correctos
+  // para el instrumento seleccionado
   VL.seq=[];
+  const p=state.student.current;
+  if(!p||!p.compases){updateViewerLoopBar();return;}
+
+  // Construir índice JSON: compás -> lista de notas en orden
+  const jsonIndex={};
+  p.compases.forEach((c,ci)=>{
+    jsonIndex[ci]=[];
+    let tieAcc=0; // unidades acumuladas por ligaduras
+    let tieStart=-1;
+    (c.notas||[]).forEach((nota,ni)=>{
+      if(!nota||nota==='skip') return;
+      const units=noteDurUnits(nota);
+      if(nota.tied){
+        if(tieStart<0){ jsonIndex[ci].push({nota,ni,baseUnits:units,tiedUnits:0}); tieStart=jsonIndex[ci].length-1; }
+        else{ jsonIndex[ci][tieStart].tiedUnits+=units; }
+      } else {
+        if(tieStart>=0){ jsonIndex[ci][tieStart].tiedUnits+=0; tieStart=-1; }
+        jsonIndex[ci].push({nota,ni,baseUnits:units,tiedUnits:0});
+      }
+    });
+  });
+
   try{
     const cursor=osmdInstance.cursor;
     cursor.reset();
-    const p=state.student.current;
-    const beatsPerWhole=4; // redonda = 4 negras
+    // Contador de notas por compás para mapear con el JSON
+    const compasNoteCounter={};
 
     while(!cursor.Iterator.EndReached){
       const measureIdx=cursor.Iterator.CurrentMeasureIndex;
       const voices=cursor.Iterator.CurrentVisibleVoiceEntries();
 
       if(voices&&voices.length>0){
-        const ve=voices[0]; // primera voz
+        const ve=voices[0];
         const notes=ve.Notes||[];
 
-        // Calcular duración de esta posición desde OSMD
-        // currentBeat da la posición en el compás, usamos la duración de la primera nota
-        let durFraction=0.25; // default: negra
-        if(notes.length>0&&notes[0].Length){
-          // Length es fracción de redonda (1=redonda, 0.5=blanca, 0.25=negra, 0.125=corchea...)
-          durFraction=notes[0].Length.RealValue||0.25;
-        }
-        const durSixteenths=Math.round(durFraction*16); // convertir a semicorcheas
-
-        // Filtrar notas que son continuación de ligadura (tieStart anterior)
-        // OSMD marca las notas con NoteTie — si tiene tieStart, suena; si solo tieEnd, no suena
+        // Solo contar posiciones que suenan (no continuaciones de ligadura)
         const soundingNotes=notes.filter(n=>{
-          if(!n.NoteTie) return true; // sin ligadura — suena
-          // Si tiene tieStart (inicio de ligadura) — suena
-          // Si solo tiene tieEnd (continuación) — no suena
+          if(!n.NoteTie) return true;
           return n.NoteTie.StartNote===n;
         });
 
@@ -2592,62 +2609,50 @@ function buildVLSeqFromOSMD(){
           const firstNote=soundingNotes[0];
           const isRest=firstNote.isRest();
 
-          // Calcular duración total incluyendo notas ligadas
-          let totalDurFraction=durFraction;
+          // Calcular duración desde OSMD (precisa, incluye ligaduras)
+          let totalDurFraction=0.25;
+          if(firstNote.Length) totalDurFraction=firstNote.Length.RealValue||0.25;
           if(firstNote.NoteTie&&firstNote.NoteTie.StartNote===firstNote){
-            // Sumar duración de todas las notas de la ligadura
-            let tieNote=firstNote.NoteTie.Notes;
-            if(tieNote&&tieNote.length>1){
-              totalDurFraction=tieNote.reduce((sum,n)=>{
-                return sum+(n.Length?n.Length.RealValue||0:0);
-              },0);
+            const tieNotes=firstNote.NoteTie.Notes;
+            if(tieNotes&&tieNotes.length>1){
+              totalDurFraction=tieNotes.reduce((s,n)=>s+(n.Length?n.Length.RealValue||0:0),0);
             }
           }
           const totalSixteenths=Math.max(1,Math.round(totalDurFraction*16));
 
+          // Obtener nota del JSON para este compás
+          if(!compasNoteCounter[measureIdx]) compasNoteCounter[measureIdx]=0;
+          const noteIdx=compasNoteCounter[measureIdx];
+          const jsonNotes=jsonIndex[measureIdx]||[];
+
           if(isRest){
             VL.seq.push({
-              ci:measureIdx, ni:VL.seq.length,
+              ci:measureIdx, ni:noteIdx,
               nota:{type:'rest',fig:'negra',dot:false},
               baseUnits:totalSixteenths, tiedUnits:0, fromOSMD:true
             });
-          } else {
-            // Extraer pitch de OSMD
-            // FundamentalNote: C=0,D=1,E=2,F=3,G=4,A=5,B=6
-            const pitch=firstNote.Pitch;
-            // OSMD FundamentalNote enum correcto
-            const stepMap={0:'do',1:'re',2:'mi',3:'fa',4:'sol',5:'la',6:'si'};
-            const fundamentalNote = pitch ? (typeof pitch.FundamentalNote === 'number' ? pitch.FundamentalNote : pitch.FundamentalNote?.value ?? 0) : 0;
-            const key = stepMap[fundamentalNote] || 'do';
-
-            // Octava: OSMD usa octava de concierto (C4=4)
-            // Mapeamos a nuestro sistema: oct0=Do grave, oct1=medio, oct2=agudo
-            const osmdOct = pitch ? (pitch.Octave ?? 4) : 4;
-            const oct = Math.max(0, Math.min(2, osmdOct - 4));
-
-            // Alteración: OSMD Accidental puede ser número o objeto
-            let altVal = 0;
-            if(pitch && pitch.Accidentals != null){
-              altVal = typeof pitch.Accidentals === 'number' ? pitch.Accidentals : 0;
-            } else if(pitch && pitch.Accidental != null){
-              altVal = typeof pitch.Accidental === 'number' ? pitch.Accidental : 0;
-            }
-            const alt = altVal > 0 ? 'sharp' : altVal < 0 ? 'flat' : null;
-
-            // Figura desde duración
-            let fig='negra';
-            if(totalSixteenths>=16) fig='redonda';
-            else if(totalSixteenths>=8) fig='blanca';
-            else if(totalSixteenths>=4) fig='negra';
-            else if(totalSixteenths>=2) fig='corchea';
-            else fig='semicorchea';
-            const dot = (totalSixteenths===6||totalSixteenths===12||totalSixteenths===24);
-
+            compasNoteCounter[measureIdx]++;
+          } else if(jsonNotes[noteIdx]){
+            // Usar nota del JSON (pitch, octava, nombre correctos)
+            const jn=jsonNotes[noteIdx];
             VL.seq.push({
-              ci:measureIdx, ni:VL.seq.length,
-              nota:{type:'note',key,oct,fig,dot,alt},
-              baseUnits:totalSixteenths, tiedUnits:0, fromOSMD:true
+              ci:measureIdx, ni:jn.ni,
+              nota:jn.nota, // nota original del JSON — pitch 100% correcto
+              baseUnits:totalSixteenths, // timing de OSMD — duración correcta
+              tiedUnits:0, fromOSMD:true
             });
+            compasNoteCounter[measureIdx]++;
+          } else {
+            // No hay nota JSON para esta posición OSMD — puede ser nota de repetición
+            // Usar la última nota del compás como fallback
+            const lastJson=jsonNotes[jsonNotes.length-1];
+            if(lastJson){
+              VL.seq.push({
+                ci:measureIdx, ni:lastJson.ni,
+                nota:lastJson.nota,
+                baseUnits:totalSixteenths, tiedUnits:0, fromOSMD:true
+              });
+            }
           }
         }
       }
@@ -2658,9 +2663,8 @@ function buildVLSeqFromOSMD(){
     lastOsmdMeasure=-1;
   }catch(e){
     console.warn('buildVLSeqFromOSMD error:', e);
-    // Fallback al JSON si OSMD falla
+    // Fallback al JSON puro si OSMD falla
     VL.seq=[];
-    const p=state.student.current;
     p.compases.forEach((c,ci)=>{
       (c.notas||[]).forEach((nota,ni)=>{
         if(!nota||nota==='skip') return;
