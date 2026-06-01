@@ -2,7 +2,21 @@ const express = require('express');
 const path = require('path');
 const app = express();
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+
+// HTML nunca cacheado, resto de archivos cacheados 1 día
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    if(filePath.endsWith('.html')){
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    }
+  }
+}));
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -29,7 +43,7 @@ async function sb(method, url, body){
 // GET todas
 app.get('/api/partituras', async (req, res) => {
   try{
-    const data = await sb('GET', API + '?select=id,titulo,compas,instrument,creada_en,compases,audio_url,bloque,orden,xml_content&order=orden.asc,creada_en.desc');
+    const data = await sb('GET', API + '?select=id,titulo,compas,instrument,creada_en,compases,audio_url,bloque,orden,xml_content,svg_url&order=orden.asc,creada_en.desc');
     res.json((data||[]).map(p=>({
       id: p.id,
       titulo: p.titulo,
@@ -40,12 +54,13 @@ app.get('/api/partituras', async (req, res) => {
       bloque: p.bloque||'General',
       orden: p.orden||0,
       hasXml: !!p.xml_content,
+      svgUrl: p.svg_url||'',
       numCompases: p.compases ? p.compases.length : 0
     })));
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
 
-// GET una — devuelve todo incluyendo xml_content
+// GET una
 app.get('/api/partituras/:id', async (req, res) => {
   try{
     const data = await sb('GET', API + '?id=eq.'+req.params.id+'&select=*');
@@ -109,7 +124,7 @@ app.delete('/api/partituras/:id', async (req, res) => {
   }catch(e){ console.error(e); res.status(500).json({error:e.message}); }
 });
 
-// PROXY para backingtracks de Google Drive
+// PROXY audio Google Drive
 app.get('/api/audio/:fileId', async (req, res) => {
   try {
     const fileId = req.params.fileId;
@@ -133,13 +148,10 @@ app.get('/api/audio/:fileId', async (req, res) => {
   }
 });
 
-// PROXY para imágenes SVG/PNG de Google Drive
-// Drive a veces redirige a una página de confirmación — manejamos ambos casos
+// PROXY imágenes PNG/SVG Google Drive
 app.get('/api/image/:fileId', async (req, res) => {
   try {
     const fileId = req.params.fileId;
-
-    // Intentar primero con export=download (descarga directa)
     let driveUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
     let response = await fetch(driveUrl, {
       headers: {
@@ -148,12 +160,8 @@ app.get('/api/image/:fileId', async (req, res) => {
       },
       redirect: 'follow'
     });
-
-    // Si Drive devuelve HTML (página de confirmación) en vez de imagen,
-    // intentar con la URL de thumbnail/export directa
     const contentType = response.headers.get('content-type') || '';
     if(contentType.includes('text/html')){
-      // Intentar con export=view
       driveUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
       response = await fetch(driveUrl, {
         headers: {
@@ -163,18 +171,13 @@ app.get('/api/image/:fileId', async (req, res) => {
         redirect: 'follow'
       });
     }
-
     if (!response.ok) {
       return res.status(502).json({ error: 'No se pudo obtener la imagen de Drive' });
     }
-
-    const finalContentType = response.headers.get('content-type') || 'image/svg+xml';
-
-    // Si sigue siendo HTML, Drive no permite el acceso directo
+    const finalContentType = response.headers.get('content-type') || 'image/png';
     if(finalContentType.includes('text/html')){
-      return res.status(403).json({ error: 'Drive requiere autenticación. Asegúrate de que el archivo es público (cualquiera con el enlace puede ver).' });
+      return res.status(403).json({ error: 'Drive requiere autenticación. Asegúrate de que el archivo es público.' });
     }
-
     res.setHeader('Content-Type', finalContentType);
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.setHeader('Access-Control-Allow-Origin', '*');
