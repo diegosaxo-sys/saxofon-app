@@ -103,13 +103,23 @@ app.post('/api/partituras', async (req, res) => {
 app.put('/api/partituras/:id', async (req, res) => {
   try{
     const {titulo,compas,instrument,compases,audioUrl,bloque,orden,xmlContent,svgUrl} = req.body;
+
+    // Primero obtener los valores actuales para no sobreescribir XML/SVG con vacío
+    const current = await sb('GET', API + '?id=eq.'+req.params.id+'&select=xml_content,svg_url');
+    const currentXml = current&&current[0] ? current[0].xml_content||'' : '';
+    const currentSvg = current&&current[0] ? current[0].svg_url||'' : '';
+
+    // Solo actualizar XML/SVG si vienen con contenido nuevo — nunca borrar con vacío
+    const finalXml = xmlContent ? xmlContent : currentXml;
+    const finalSvg = svgUrl ? svgUrl : currentSvg;
+
     await sb('PATCH', API+'?id=eq.'+req.params.id, {
       titulo, compas, instrument, compases,
       audio_url: audioUrl||'',
       bloque: bloque||'General',
       orden: orden||0,
-      xml_content: xmlContent||'',
-      svg_url: svgUrl||'',
+      xml_content: finalXml,
+      svg_url: finalSvg,
       actualizada_en: new Date().toISOString()
     });
     res.json({ok:true});
